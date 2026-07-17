@@ -1,0 +1,6 @@
+django>=5.0
+djangorestframework
+python-dotenv
+django-cors-headers
+django-environ
+cryptography

@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi Perfil - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-8">
+
+    <!-- Header -->
+    <div>
+        <h1 class="text-3xl font-bold tracking-tight text-white">Mi Perfil y Configuración</h1>
+        <p class="text-sm text-slate-400 mt-1">Aquí encontrarás tus credenciales para conectar Google Apps Script con Fintrack CL.</p>
+    </div>
+
+    <!-- Tarjeta de Credenciales API -->
+    <div class="glass p-6 rounded-2xl space-y-6">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="bi bi-key-fill text-teal-400"></i>
+            Credenciales de API
+        </h2>
+        <p class="text-sm text-slate-400 leading-relaxed">
+            Estas credenciales son <strong class="text-slate-200">únicas para tu cuenta</strong>. El <strong class="text-slate-200">API Key ID</strong> es tu identificador público. El <strong class="text-rose-400">API Secret</strong> es tu firma privada — <strong class="text-rose-400">no compartas este valor con nadie</strong>.
+        </p>
+
+        <!-- API Key ID -->
+        <div class="space-y-2">
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">API Key ID <span class="text-slate-600 font-normal">(Público)</span></label>
+            <div class="flex gap-2">
+                <input
+                    id="api-key-id"
+                    type="text"
+                    value="{{ perfil.api_key_id }}"
+                    readonly
+                    class="flex-1 bg-slate-900/60 border border-slate-700 text-slate-200 font-mono text-sm px-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+                <button
+                    onclick="copyToClipboard('api-key-id', this)"
+                    class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-xl border border-slate-700 hover:border-slate-600 transition-all active:scale-95 flex items-center gap-1.5"
+                >
+                    <i class="bi bi-clipboard"></i> Copiar
+                </button>
+            </div>
+        </div>
+
+        <!-- API Secret Token -->
+        <div class="space-y-2">
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">API Secret <span class="text-rose-500 font-normal">(Privado — Solo lectura)</span></label>
+            <div class="flex gap-2">
+                <input
+                    id="api-secret"
+                    type="password"
+                    value="{{ perfil.api_secret_token }}"
+                    readonly
+                    class="flex-1 bg-slate-900/60 border border-rose-900/40 text-slate-200 font-mono text-sm px-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+                <button
+                    onclick="toggleSecret()"
+                    id="toggle-secret-btn"
+                    class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-xl border border-slate-700 hover:border-slate-600 transition-all active:scale-95 flex items-center gap-1.5"
+                >
+                    <i class="bi bi-eye" id="eye-icon"></i> Mostrar
+                </button>
+                <button
+                    onclick="copyToClipboard('api-secret', this)"
+                    class="px-4 py-2.5 bg-rose-900/30 hover:bg-rose-900/50 text-rose-300 text-sm font-semibold rounded-xl border border-rose-900/40 hover:border-rose-700/50 transition-all active:scale-95 flex items-center gap-1.5"
+                >
+                    <i class="bi bi-clipboard"></i> Copiar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección de configuración de GAS -->
+    <div class="glass p-6 rounded-2xl space-y-5">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="bi bi-google text-yellow-400"></i>
+            Configuración de Google Apps Script
+        </h2>
+        <p class="text-sm text-slate-400 leading-relaxed">
+            Copia y pega el siguiente bloque de código al inicio de tu script en <strong class="text-slate-200">Google Apps Script</strong>. Reemplaza <code class="bg-slate-900 px-1.5 py-0.5 rounded text-teal-300 text-xs">ENDPOINT_URL</code> con la URL pública de tu servidor cuando lo despliegues en producción.
+        </p>
+
+        <!-- Pasos -->
+        <ol class="space-y-3 text-sm text-slate-400">
+            <li class="flex gap-3 items-start">
+                <span class="inline-flex flex-shrink-0 items-center justify-center w-6 h-6 rounded-full bg-teal-500/10 text-teal-400 text-xs font-bold mt-0.5">1</span>
+                <span>Ve a <strong class="text-slate-200">script.google.com</strong> y crea un nuevo proyecto.</span>
+            </li>
+            <li class="flex gap-3 items-start">
+                <span class="inline-flex flex-shrink-0 items-center justify-center w-6 h-6 rounded-full bg-teal-500/10 text-teal-400 text-xs font-bold mt-0.5">2</span>
+                <span>Pega el código del script completo que encontrarás en el archivo <code class="bg-slate-900 px-1.5 py-0.5 rounded text-teal-300 text-xs">Fintrack CL.md</code> (Sección 7). Luego reemplaza las primeras 3 líneas con el bloque a continuación.</span>
+            </li>
+            <li class="flex gap-3 items-start">
+                <span class="inline-flex flex-shrink-0 items-center justify-center w-6 h-6 rounded-full bg-teal-500/10 text-teal-400 text-xs font-bold mt-0.5">3</span>
+                <span>Configura un <strong class="text-slate-200">Trigger por tiempo</strong> para que el script se ejecute cada 10 minutos.</span>
+            </li>
+        </ol>
+
+        <!-- Bloque de código pre-rellenado -->
+        <div class="relative">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 bg-slate-900/50">
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Google Apps Script — Credenciales</span>
+                    <button
+                        onclick="copyToClipboard('gas-code', this)"
+                        class="text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
+                    >
+                        <i class="bi bi-clipboard"></i> Copiar código
+                    </button>
+                </div>
+                <textarea
+                    id="gas-code"
+                    readonly
+                    rows="3"
+                    class="w-full bg-transparent text-teal-300 font-mono text-sm px-4 py-4 resize-none focus:outline-none"
+                >{{ gas_code }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del usuario -->
+    <div class="glass p-6 rounded-2xl">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-4">
+            <i class="bi bi-person-circle text-teal-400"></i>
+            Información de Cuenta
+        </h2>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Usuario</p>
+                <p class="text-slate-200 font-semibold">{{ request.user.username }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Email</p>
+                <p class="text-slate-200 font-semibold">{{ request.user.email|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Cuenta creada</p>
+                <p class="text-slate-200 font-semibold">{{ perfil.creado_en|date:"d M Y" }}</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<script>
+function copyToClipboard(inputId, btn) {
+    const el = document.getElementById(inputId);
+    const text = el.tagName === 'TEXTAREA' ? el.value : el.value;
+    navigator.clipboard.writeText(text).then(() => {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check2"></i> ¡Copiado!';
+        btn.classList.add('text-emerald-400');
+        setTimeout(() => {
+            btn.innerHTML = original;
+            btn.classList.remove('text-emerald-400');
+        }, 2000);
+    });
+}
+
+function toggleSecret() {
+    const input = document.getElementById('api-secret');
+    const btn = document.getElementById('toggle-secret-btn');
+    const icon = document.getElementById('eye-icon');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+        btn.innerHTML = '<i class="bi bi-eye-slash" id="eye-icon"></i> Ocultar';
+    } else {
+        input.type = 'password';
+        icon.className = 'bi bi-eye';
+        btn.innerHTML = '<i class="bi bi-eye" id="eye-icon"></i> Mostrar';
+    }
+}
+</script>
+{% endblock %}
