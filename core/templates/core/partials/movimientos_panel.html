@@ -1,0 +1,23 @@
+<div id="movimientos-panel">
+    <!-- Móvil: tarjetas -->
+    <div class="md:hidden space-y-3 p-4" id="mov-cards">
+        {% include 'core/partials/movimientos_cards.html' %}
+    </div>
+    <!-- Desktop: tabla sin scroll horizontal -->
+    <div class="hidden md:block px-4 pb-2">
+        <table class="w-full table-fixed">
+            <thead>
+                <tr class="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-800/60">
+                    <th class="py-3 pr-2 w-[7.5rem]">Fecha</th>
+                    <th class="py-3 pr-2 w-[8rem] hidden xl:table-cell">Cuenta</th>
+                    <th class="py-3 pr-2">Detalle</th>
+                    <th class="py-3 pr-2 w-[9.5rem]">Categoría</th>
+                    <th class="py-3 text-right w-[5.5rem]">Monto</th>
+                </tr>
+            </thead>
+            <tbody id="movimientos-tbody" class="divide-y divide-slate-800/30">
+                {% include 'core/htmx_movimientos_list.html' %}
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Auditoría - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'core/partials/page_intro.html' with page_title="Auditoría" page_lead="Registro de cambios importantes en este espacio (por ejemplo cuando alguien modifica la categoría de un movimiento). Sirve para saber qué se tocó, quién lo hizo y cuándo, sin depender solo del historial del admin de Django." page_hint="Hoy se registran sobre todo cambios de categoría desde el dashboard. Más acciones se irán sumando con el tiempo." show_espacio_switcher=True espacio_next="/auditoria/" %}
+
+    <div class="glass rounded-2xl overflow-hidden">
+        <div class="hidden md:grid grid-cols-[1.2fr_1fr_7rem_1.5fr] gap-3 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-800 bg-slate-900/40">
+            <span>Acción</span>
+            <span>Usuario</span>
+            <span>Fecha</span>
+            <span>Detalle</span>
+        </div>
+
+        {% for ev in eventos %}
+        <article class="px-5 py-4 border-b border-slate-800/60 last:border-0 hover:bg-slate-800/15">
+            <div class="md:grid md:grid-cols-[1.2fr_1fr_7rem_1.5fr] md:gap-3 md:items-start space-y-2 md:space-y-0">
+                <p class="text-sm font-semibold text-teal-300 break-all">{{ ev.accion }}</p>
+                <p class="text-sm text-slate-300">{{ ev.usuario.username|default:"—" }}</p>
+                <p class="text-xs text-slate-500">{{ ev.fecha|date:"d M Y H:i" }}</p>
+                <pre class="text-[11px] text-slate-500 whitespace-pre-wrap break-all max-h-20 overflow-y-auto md:max-h-16">{{ ev.detalles }}</pre>
+            </div>
+        </article>
+        {% empty %}
+        <p class="text-center text-slate-500 text-sm py-14">
+            Sin eventos aún. Cambia la categoría de un movimiento en el dashboard para generar el primero.
+        </p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+<form method="post" action="{% url 'espacio_activar' %}" class="flex items-center gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url|default:'/' }}">
+    <label class="text-xs text-slate-500 hidden sm:inline">Espacio</label>
+    <select name="espacio_id" onchange="this.form.submit()"
+            class="bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500">
+        {% for e in espacios %}
+        <option value="{{ e.id }}" {% if e.id == espacio.id %}selected{% endif %}>{{ e.nombre }}</option>
+        {% endfor %}
+    </select>
+</form>

@@ -1,0 +1,35 @@
+{% if reglas %}
+<div class="overflow-hidden rounded-xl border border-slate-800">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-900/50 text-[11px] uppercase tracking-wider text-slate-500">
+            <tr>
+                <th class="text-left font-semibold px-4 py-2.5">Patrón</th>
+                <th class="text-left font-semibold px-4 py-2.5">Categoría</th>
+                <th class="w-12"></th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/80">
+            {% for regla in reglas %}
+            <tr class="hover:bg-slate-800/20">
+                <td class="px-4 py-3 font-mono text-teal-300">{{ regla.patron_texto }}</td>
+                <td class="px-4 py-3 text-slate-200">{{ regla.categoria_destino.nombre }}</td>
+                <td class="px-2 py-3 text-right">
+                    <button type="button"
+                        hx-post="{% url 'regla_eliminar' regla.id %}"
+                        hx-target="#reglas-list"
+                        hx-swap="innerHTML"
+                        hx-confirm="¿Eliminar regla {{ regla.patron_texto }}?"
+                        class="text-xs text-rose-400 hover:text-rose-300 px-2">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-sm text-slate-500 py-6 text-center rounded-xl border border-dashed border-slate-800">
+    Sin reglas todavía. Ejemplo: patrón <span class="font-mono text-teal-400/80">COPEC</span> → categoría Combustible.
+</p>
+{% endif %}

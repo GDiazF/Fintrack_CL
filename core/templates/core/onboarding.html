@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}Onboarding - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Onboarding Gmail</h1>
+        <p class="text-sm text-slate-400 mt-1">Conecta Apps Script sin entregar claves bancarias.</p>
+    </div>
+
+    {% if mostrar_onboarding %}
+    <div class="rounded-2xl border border-teal-500/30 bg-teal-500/10 p-4 text-sm text-teal-100">
+        <strong>Cuenta lista.</strong> Guarda el API Secret ahora: solo se muestra hasta que confirmes.
+    </div>
+    {% endif %}
+
+    <div class="glass rounded-2xl p-5 sm:p-6 space-y-4">
+        <h2 class="text-base font-bold text-white">Pasos</h2>
+        <ol class="space-y-3 text-sm text-slate-300">
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs font-bold">1</span><span>Copia el script (incluye claves y <code class="text-teal-300 text-xs">{{ endpoint_url }}</code>)</span></li>
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs font-bold">2</span><span>Pégalo en <strong class="text-white">script.google.com</strong> y guarda</span></li>
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs font-bold">3</span><span>Ejecuta una vez y autoriza Gmail + UrlFetch</span></li>
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs font-bold">4</span><span>Trigger cada 10 minutos → <code class="text-teal-300 text-xs">enviarCorreosAlServidor</code></span></li>
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-teal-500/20 text-teal-300 flex items-center justify-center text-xs font-bold">5</span><span>Revisa el dashboard (o Fallidas si no parsea)</span></li>
+        </ol>
+        <p class="text-xs text-slate-500">En local usa <code class="text-slate-400">simulate_webhook.py</code>; GAS necesita HTTPS o túnel. Ver ONBOARDING.md.</p>
+    </div>
+
+    <div class="glass rounded-2xl p-5 sm:p-6 space-y-4">
+        <h2 class="text-base font-bold text-white">Credenciales API</h2>
+        <div>
+            <label class="block text-xs text-slate-500 uppercase mb-1.5">API Key ID</label>
+            <div class="flex gap-2">
+                <input id="api-key-id" type="text" value="{{ perfil.api_key_id }}" readonly
+                       class="flex-1 min-w-0 bg-slate-900/60 border border-slate-700 text-slate-200 font-mono text-xs sm:text-sm px-3 py-2.5 rounded-xl">
+                <button type="button" onclick="copyEl('api-key-id', this)" class="shrink-0 px-3 py-2 bg-slate-800 rounded-xl text-slate-300 text-sm"><i class="bi bi-clipboard"></i></button>
+            </div>
+        </div>
+        <div>
+            <label class="block text-xs text-slate-500 uppercase mb-1.5">API Secret</label>
+            {% if mostrar_secreto %}
+            <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100 mb-2">Guárdalo ahora. Luego no se vuelve a mostrar.</div>
+            <div class="flex gap-2">
+                <input id="api-secret" type="text" value="{{ perfil.api_secret_token }}" readonly
+                       class="flex-1 min-w-0 bg-slate-900/60 border border-rose-900/40 text-slate-200 font-mono text-xs sm:text-sm px-3 py-2.5 rounded-xl">
+                <button type="button" onclick="copyEl('api-secret', this)" class="shrink-0 px-3 py-2 bg-rose-900/30 rounded-xl text-rose-300 text-sm"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <form method="post" action="{% url 'confirmar_secreto' %}" class="mt-3">
+                {% csrf_token %}
+                <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Ya lo guardé — ocultar</button>
+            </form>
+            {% else %}
+            <p class="font-mono text-slate-500 tracking-widest text-sm">••••••••••••••••</p>
+            <form method="post" action="{% url 'rotar_secreto' %}" class="mt-2"
+                  onsubmit="return confirm('¿Rotar secreto? Deberás actualizar el GAS.');">
+                {% csrf_token %}
+                <button type="submit" class="text-sm text-amber-400 hover:text-amber-300 font-semibold"><i class="bi bi-arrow-repeat"></i> Rotar secreto</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="glass rounded-2xl p-5 sm:p-6 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+            <h2 class="text-base font-bold text-white">Script completo</h2>
+            <button type="button" onclick="copyEl('gas-code', this)" class="text-xs font-semibold text-slate-400 hover:text-white"><i class="bi bi-clipboard"></i> Copiar</button>
+        </div>
+        {% if not mostrar_secreto %}
+        <p class="text-xs text-amber-200/80">Secreto enmascarado. Rota para generar un script con la clave real.</p>
+        {% endif %}
+        <textarea id="gas-code" readonly rows="14"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-xl text-teal-300 font-mono text-[11px] sm:text-xs px-3 py-3 resize-y focus:outline-none">{{ gas_code }}</textarea>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyEl(id, btn) {
+    const el = document.getElementById(id);
+    navigator.clipboard.writeText(el.value).then(() => {
+        const o = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check2"></i>';
+        setTimeout(() => btn.innerHTML = o, 1600);
+    });
+}
+</script>
+{% endblock %}

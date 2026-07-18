@@ -1,9 +1,14 @@
 import hmac
 import hashlib
 import time
+from django.db import IntegrityError, transaction
 from rest_framework import authentication
 from rest_framework import exceptions
-from core.models import PerfilUsuario
+from core.models import PerfilUsuario, WebhookNonce
+
+# Ventana anti-replay alineada al SRS (5 minutos)
+NONCE_TTL_SECONDS = 300
+
 
 class WebhookSignatureAuthentication(authentication.BaseAuthentication):
     def authenticate(self, request):
@@ -23,7 +28,7 @@ class WebhookSignatureAuthentication(authentication.BaseAuthentication):
         try:
             ts_int = int(timestamp)
             current_time = int(time.time())
-            if abs(current_time - ts_int) > 300:
+            if abs(current_time - ts_int) > NONCE_TTL_SECONDS:
                 raise exceptions.AuthenticationFailed('Petición expirada (Timestamp fuera de rango)')
         except ValueError:
             raise exceptions.AuthenticationFailed('Formato de Timestamp inválido')
@@ -38,7 +43,7 @@ class WebhookSignatureAuthentication(authentication.BaseAuthentication):
         # 3. Validación y verificación criptográfica de la firma
         payload_bytes = request.body
         message_to_sign = payload_bytes + timestamp.encode('utf-8') + nonce.encode('utf-8')
-        
+
         expected_signature = hmac.new(
             api_secret_token.encode('utf-8'),
             message_to_sign,
@@ -48,5 +53,24 @@ class WebhookSignatureAuthentication(authentication.BaseAuthentication):
         if not hmac.compare_digest(expected_signature, signature):
             raise exceptions.AuthenticationFailed('Firma inválida. Acceso denegado')
 
-        # Autenticación exitosa, retornamos al usuario asociado y None para auth info
+        # 4. Registrar nonce (único por perfil) — rechaza reutilización
+        self._consume_nonce(perfil, nonce, ts_int)
+
         return (perfil.user, None)
+
+    def _consume_nonce(self, perfil, nonce, ts_int):
+        """Persiste el nonce y limpia entradas fuera de la ventana TTL."""
+        cutoff = int(time.time()) - NONCE_TTL_SECONDS
+        WebhookNonce.objects.filter(perfil=perfil, timestamp__lt=cutoff).delete()
+
+        try:
+            with transaction.atomic():
+                WebhookNonce.objects.create(
+                    perfil=perfil,
+                    nonce=nonce,
+                    timestamp=ts_int,
+                )
+        except IntegrityError:
+            raise exceptions.AuthenticationFailed(
+                'Nonce reutilizado. Posible ataque de repetición (replay)'
+            )

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Enlace inválido - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="min-h-[70vh] flex items-center justify-center">
+    <div class="w-full max-w-md space-y-6 text-center">
+        <div class="inline-flex p-4 rounded-2xl bg-rose-500/10 text-rose-400">
+            <i class="bi bi-link-45deg text-4xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-white">Enlace inválido o expirado</h1>
+        <p class="text-sm text-slate-400">Solicita un nuevo correo de verificación e inténtalo de nuevo.</p>
+        <a href="{% url 'reenviar_verificacion' %}"
+           class="inline-flex py-3 px-5 bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 font-bold rounded-xl text-sm">
+            Reenviar verificación
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+# .gitignore — Fintrack CL
+# Entorno y secretos
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+*.log
+staticfiles/
+media/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Tests / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/

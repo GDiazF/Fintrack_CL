@@ -3,7 +3,8 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     Usuario, PerfilUsuario, Espacio, InstitucionFinanciera,
     CuentaFinanciera, Categoria, Comercio, ReglaCategoria,
-    Moneda, Movimiento, Presupuesto, MetaAhorro, EventoAuditoria
+    Moneda, Movimiento, Presupuesto, MetaAhorro, EventoAuditoria,
+    WebhookNonce, IngestaFallida, AliasComercio,
 )
 
 @admin.register(Usuario)
@@ -15,8 +16,9 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(PerfilUsuario)
 class PerfilUsuarioAdmin(admin.ModelAdmin):
-    list_display = ('user', 'api_key_id', 'creado_en')
-    readonly_fields = ('api_key_id', 'api_secret_token')
+    list_display = ('user', 'api_key_id', 'email_verificado', 'secret_revelado', 'creado_en')
+    list_filter = ('email_verificado', 'secret_revelado')
+    readonly_fields = ('api_key_id', 'api_secret_token', 'creado_en')
 
 @admin.register(Espacio)
 class EspacioAdmin(admin.ModelAdmin):
@@ -42,6 +44,11 @@ class CategoriaAdmin(admin.ModelAdmin):
 class ComercioAdmin(admin.ModelAdmin):
     list_display = ('nombre_fantasia', 'categoria_sugerida')
     search_fields = ('nombre_fantasia',)
+
+@admin.register(AliasComercio)
+class AliasComercioAdmin(admin.ModelAdmin):
+    list_display = ('texto_raw', 'comercio', 'creado_en')
+    search_fields = ('texto_raw', 'comercio__nombre_fantasia')
 
 @admin.register(ReglaCategoria)
 class ReglaCategoriaAdmin(admin.ModelAdmin):
@@ -77,3 +84,24 @@ class EventoAuditoriaAdmin(admin.ModelAdmin):
         return False
     def has_change_permission(self, request, obj=None):
         return False
+
+@admin.register(WebhookNonce)
+class WebhookNonceAdmin(admin.ModelAdmin):
+    list_display = ('perfil', 'nonce', 'timestamp', 'usado_en')
+    list_filter = ('usado_en',)
+    search_fields = ('nonce', 'perfil__api_key_id', 'perfil__user__username')
+    readonly_fields = ('perfil', 'nonce', 'timestamp', 'usado_en')
+    def has_add_permission(self, request):
+        return False
+    def has_change_permission(self, request, obj=None):
+        return False
+
+@admin.register(IngestaFallida)
+class IngestaFallidaAdmin(admin.ModelAdmin):
+    list_display = ('gmail_message_id', 'usuario', 'conector', 'motivo_error', 'resuelto', 'creado_en')
+    list_filter = ('resuelto', 'conector', 'creado_en')
+    search_fields = ('gmail_message_id', 'motivo_error', 'raw_text', 'usuario__username')
+    readonly_fields = ('usuario', 'gmail_message_id', 'conector', 'fecha_correo', 'raw_text', 'motivo_error', 'creado_en')
+    def has_add_permission(self, request):
+        return False
+

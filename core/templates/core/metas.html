@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Metas - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'core/partials/page_intro.html' with page_title="Metas de ahorro" page_lead="Fija objetivos con un monto meta (vacaciones, fondo de emergencia, etc.) y registra cuánto llevas ahorrado. La barra muestra el avance para mantener el foco sin mezclarlo con el día a día de gastos." page_hint="El avance se actualiza a mano por ahora; no se descuenta automáticamente de tus movimientos." show_espacio_switcher=True espacio_next="/metas/" %}
+
+    <form method="post" action="{% url 'meta_crear' %}" class="glass p-4 sm:p-5 rounded-2xl grid grid-cols-1 sm:grid-cols-[1.4fr_1fr_auto] gap-2">
+        {% csrf_token %}
+        <input type="text" name="nombre" required placeholder="Nombre de la meta (ej: Vacaciones)"
+               class="bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-600">
+        <input type="number" name="monto_objetivo" required min="1" placeholder="Objetivo en CLP"
+               class="bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+        <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl">Crear meta</button>
+    </form>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for item in items %}
+        <div class="glass p-5 rounded-2xl space-y-4">
+            <div class="flex justify-between gap-2">
+                <h3 class="font-semibold text-white truncate">{{ item.meta.nombre }}</h3>
+                <span class="text-slate-400 text-sm shrink-0">${{ item.meta.monto_actual }} / ${{ item.meta.monto_objetivo }}</span>
+            </div>
+            <div class="h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-emerald-500" style="width: {{ item.pct }}%"></div>
+            </div>
+            <p class="text-xs text-slate-500">{{ item.pct }}% completado</p>
+            <form method="post" action="{% url 'meta_actualizar' item.meta.id %}" class="flex flex-wrap gap-2 items-center pt-1 border-t border-slate-800">
+                {% csrf_token %}
+                <label class="text-xs text-slate-500">Actualizar avance</label>
+                <input type="number" name="monto_actual" value="{{ item.meta.monto_actual }}" min="0"
+                       class="w-36 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-1.5 text-sm text-white">
+                <button class="text-xs text-teal-400 hover:text-teal-300 font-semibold">Guardar</button>
+            </form>
+        </div>
+        {% empty %}
+        <div class="md:col-span-2 text-center text-slate-500 text-sm py-12 rounded-2xl border border-dashed border-slate-800">
+            Aún no tienes metas. Crea una con nombre y monto objetivo.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

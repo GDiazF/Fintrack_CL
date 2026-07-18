@@ -16,8 +16,16 @@ class Usuario(AbstractUser):
 class PerfilUsuario(models.Model):
     """Extensión del perfil para almacenar credenciales únicas de API y firmas webhooks."""
     user = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil')
-    api_key_id = models.CharField(max_length=32, unique=True, editable=False) # Identificador público de la llave
-    api_secret_token = models.CharField(max_length=64, unique=True, editable=False) # Secreto criptográfico privado
+    api_key_id = models.CharField(max_length=32, unique=True, editable=False)  # Identificador público
+    api_secret_token = models.CharField(max_length=64, unique=True, editable=False)  # Secreto privado
+    secret_revelado = models.BooleanField(
+        default=False,
+        help_text='True cuando el usuario confirmó haber guardado el secreto (ya no se muestra en claro).',
+    )
+    email_verificado = models.BooleanField(
+        default=True,
+        help_text='False tras registro hasta que confirme el enlace del correo. Usuarios existentes/admin quedan en True.',
+    )
     creado_en = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
@@ -26,6 +34,17 @@ class PerfilUsuario(models.Model):
         if not self.api_secret_token:
             self.api_secret_token = f"ft_secret_{secrets.token_urlsafe(32)}"
         super().save(*args, **kwargs)
+
+    def rotar_secret(self):
+        """Genera un nuevo secreto y lo deja pendiente de revelación única."""
+        self.api_secret_token = f"ft_secret_{secrets.token_urlsafe(32)}"
+        self.secret_revelado = False
+        self.save(update_fields=['api_secret_token', 'secret_revelado'])
+        return self.api_secret_token
+
+    def confirmar_secreto_guardado(self):
+        self.secret_revelado = True
+        self.save(update_fields=['secret_revelado'])
 
     def __str__(self):
         return f"Perfil de {self.user.username}"
@@ -98,6 +117,22 @@ class Comercio(models.Model):
 
     def __str__(self):
         return self.nombre_fantasia
+
+
+class AliasComercio(models.Model):
+    """
+    Variantes crudas del banco que apuntan a un Comercio canónico.
+    Ej: 'LIDER IQUIQUE' → Comercio 'Líder'.
+    """
+    texto_raw = models.CharField(max_length=150, unique=True)
+    comercio = models.ForeignKey(Comercio, on_delete=models.CASCADE, related_name='aliases')
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = 'Aliases de comercio'
+
+    def __str__(self):
+        return f"{self.texto_raw} → {self.comercio.nombre_fantasia}"
 
 
 class ReglaCategoria(models.Model):
@@ -187,3 +222,45 @@ class EventoAuditoria(models.Model):
 
     def __str__(self):
         return f"Auditoria: {self.accion} - {self.fecha.strftime('%Y-%m-%d %H:%M')}"
+
+
+class WebhookNonce(models.Model):
+    """
+    Nonces usados en firmas de ingesta. Evita reutilización (anti-replay)
+    dentro de la ventana temporal de 5 minutos.
+    """
+    perfil = models.ForeignKey(PerfilUsuario, on_delete=models.CASCADE, related_name='nonces')
+    nonce = models.CharField(max_length=128)
+    timestamp = models.PositiveIntegerField()
+    usado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('perfil', 'nonce')
+        indexes = [
+            models.Index(fields=['timestamp']),
+        ]
+
+    def __str__(self):
+        return f"Nonce {self.nonce[:12]}… ({self.perfil.api_key_id})"
+
+
+class IngestaFallida(models.Model):
+    """
+    Correos recibidos por el webhook que no pudieron convertirse en Movimiento.
+    Permite revisión manual sin reintentos infinitos del cliente GAS.
+    """
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='ingestas_fallidas')
+    gmail_message_id = models.CharField(max_length=64, unique=True, editable=False)
+    conector = models.CharField(max_length=50, blank=True, default='')
+    fecha_correo = models.DateTimeField(null=True, blank=True)
+    raw_text = models.TextField()
+    motivo_error = models.CharField(max_length=255)
+    resuelto = models.BooleanField(default=False)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en']
+
+    def __str__(self):
+        estado = 'resuelto' if self.resuelto else 'pendiente'
+        return f"IngestaFallida {self.gmail_message_id} ({estado})"

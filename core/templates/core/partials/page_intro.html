@@ -1,0 +1,15 @@
+{# Intro estándar de página: título, descripción, switcher opcional #}
+<div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+    <div class="max-w-3xl">
+        <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">{{ page_title }}</h1>
+        <p class="text-sm text-slate-400 mt-2 leading-relaxed">{{ page_lead }}</p>
+        {% if page_hint %}
+        <p class="text-xs text-slate-500 mt-2 leading-relaxed border-l-2 border-teal-500/40 pl-3">{{ page_hint }}</p>
+        {% endif %}
+    </div>
+    {% if show_espacio_switcher %}
+    <div class="shrink-0">
+        {% include 'core/partials/espacio_switcher.html' with next_url=espacio_next %}
+    </div>
+    {% endif %}
+</div>

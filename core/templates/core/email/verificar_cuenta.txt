@@ -1,0 +1,9 @@
+Hola {{ user.username }},
+
+Para activar tu cuenta en Fintrack CL, abre este enlace:
+
+{{ verify_url }}
+
+Si no creaste esta cuenta, ignora este correo.
+
+— Equipo Fintrack CL

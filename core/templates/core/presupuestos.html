@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Presupuestos - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'core/partials/page_intro.html' with page_title="Presupuestos" page_lead="Define un tope de gasto mensual por categoría. Fintrack suma los egresos de ese mes y te muestra qué porcentaje del límite ya usaste, para detectar a tiempo si te estás pasando." page_hint="Los porcentajes se calculan solo con movimientos categorizados del mes seleccionado." show_espacio_switcher=True espacio_next="/presupuestos/" %}
+
+    <div class="glass rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-end gap-4">
+        <form method="get" class="flex flex-wrap gap-3 items-end">
+            <div>
+                <label class="text-xs text-slate-500">Mes</label>
+                <input type="number" name="mes" min="1" max="12" value="{{ mes }}" class="block w-24 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Año</label>
+                <input type="number" name="anio" value="{{ anio }}" class="block w-28 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            </div>
+            <button class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-4 py-2.5 rounded-xl">Ver período</button>
+        </form>
+
+        <form method="post" action="{% url 'presupuesto_crear' %}" class="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 lg:border-l lg:border-slate-800 lg:pl-4">
+            {% csrf_token %}
+            <input type="hidden" name="mes" value="{{ mes }}">
+            <input type="hidden" name="anio" value="{{ anio }}">
+            <select name="categoria_id" required class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+                <option value="">Categoría del presupuesto…</option>
+                {% for cat in categorias %}<option value="{{ cat.id }}">{{ cat.nombre }}</option>{% endfor %}
+            </select>
+            <input type="number" name="monto_limite" required min="1" placeholder="Límite CLP"
+                   class="w-full sm:w-40 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl">Guardar</button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {% for item in items %}
+        <div class="glass p-5 rounded-2xl">
+            <div class="flex justify-between gap-2 text-sm mb-3">
+                <span class="font-semibold text-white truncate">{{ item.presupuesto.categoria.nombre }}</span>
+                <span class="text-slate-400 shrink-0 text-xs sm:text-sm">${{ item.gastado }} / ${{ item.presupuesto.monto_limite }}</span>
+            </div>
+            <div class="h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full {% if item.pct >= 100 %}bg-rose-500{% elif item.pct >= 80 %}bg-amber-500{% else %}bg-teal-500{% endif %}"
+                     style="width: {{ item.pct }}%"></div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">{{ item.pct }}% consumido en {{ mes }}/{{ anio }}</p>
+        </div>
+        {% empty %}
+        <div class="md:col-span-2 xl:col-span-3 text-center text-slate-500 text-sm py-12 rounded-2xl border border-dashed border-slate-800">
+            Sin presupuestos para este mes. Crea uno arriba eligiendo categoría y límite en CLP.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

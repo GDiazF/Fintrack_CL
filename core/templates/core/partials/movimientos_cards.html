@@ -1,0 +1,8 @@
+{% for mov in movimientos %}
+{% include 'core/partials/movimiento_card.html' %}
+{% empty %}
+<div class="text-center text-sm text-slate-500 py-10">
+    <i class="bi bi-inbox text-2xl block mb-2"></i>
+    No hay movimientos con los filtros actuales.
+</div>
+{% endfor %}

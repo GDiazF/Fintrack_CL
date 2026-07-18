@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}Organización - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'core/partials/page_intro.html' with page_title="Organización" page_lead="Aquí defines cómo se clasifica tu dinero en este espacio. Las categorías agrupan gastos (Combustible, Supermercado, etc.) y las reglas asignan automáticamente una categoría cuando el comercio del correo coincide con un patrón (por ejemplo COPEC → Combustible)." page_hint="Cambia de espacio con el selector a la derecha si manejas finanzas personales y del hogar por separado." show_espacio_switcher=True espacio_next="/organizacion/" %}
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <section class="xl:col-span-2 glass rounded-2xl p-5 sm:p-6 space-y-5">
+            <div>
+                <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="bi bi-tags text-teal-400"></i> Categorías
+                </h2>
+                <p class="text-sm text-slate-400 mt-1.5 leading-relaxed">
+                    Etiquetas de este espacio para el dashboard, presupuestos y reportes.
+                    También puedes usar las globales del sistema.
+                </p>
+            </div>
+
+            <form hx-post="{% url 'categoria_crear' %}" hx-target="#categorias-list" hx-swap="innerHTML"
+                  class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 items-center">
+                {% csrf_token %}
+                <input type="text" name="nombre" required placeholder="Ej: Combustible, Delivery, Arriendo"
+                    class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-teal-500">
+                <input type="color" name="color_hex" value="#0d9488" title="Elegir color"
+                       class="h-[42px] w-11 shrink-0 cursor-pointer rounded-xl border border-slate-700 bg-slate-900/60 p-1">
+                <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl">Crear</button>
+            </form>
+
+            <div id="categorias-list">{% include 'core/partials/categorias_list.html' %}</div>
+
+            {% if categorias_globales %}
+            <div class="pt-4 border-t border-slate-800">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Categorías globales (sistema)</p>
+                <p class="text-xs text-slate-500 mb-3">Listas para reglas y presupuestos sin crearlas de nuevo.</p>
+                <div class="flex flex-wrap gap-2">
+                    {% for cat in categorias_globales %}
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-slate-200"
+                          style="background:{{ cat.color_hex }}28;border:1px solid {{ cat.color_hex }}55">
+                        <i class="bi {{ cat.icono }}"></i> {{ cat.nombre }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="glass rounded-2xl p-5 sm:p-6 space-y-4">
+            <div>
+                <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="bi bi-bounding-box text-teal-400"></i> Espacios
+                </h2>
+                <p class="text-sm text-slate-400 mt-1.5 leading-relaxed">
+                    Aíslan finanzas (personal, hogar, negocio). Cada uno tiene sus categorías, reglas y presupuestos.
+                </p>
+            </div>
+            <ul class="space-y-2">
+                {% for e in espacios %}
+                <li class="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5 text-sm
+                           {% if e.id == espacio.id %}border-teal-500/40 bg-teal-500/5{% endif %}">
+                    <span class="text-slate-200 truncate">{{ e.nombre }}</span>
+                    {% if e.id == espacio.id %}
+                    <span class="text-[10px] uppercase tracking-wider text-teal-400 font-semibold shrink-0">Activo</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <form method="post" action="{% url 'espacio_crear' %}" class="space-y-2 pt-2 border-t border-slate-800">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="/organizacion/">
+                <label class="text-xs text-slate-500">Crear espacio nuevo</label>
+                <div class="flex gap-2">
+                    <input type="text" name="nombre" required placeholder="Ej: Gastos del hogar"
+                        class="flex-1 min-w-0 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500">
+                    <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shrink-0">Crear</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <section class="glass rounded-2xl p-5 sm:p-6 space-y-5">
+        <div class="max-w-3xl">
+            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                <i class="bi bi-magic text-teal-400"></i> Reglas de auto-categorización
+            </h2>
+            <p class="text-sm text-slate-400 mt-1.5 leading-relaxed">
+                Al ingerir un correo, si el comercio contiene tu patrón se asigna la categoría sola.
+                Así no tienes que etiquetar cada compra a mano.
+            </p>
+        </div>
+
+        <form hx-post="{% url 'regla_crear' %}" hx-target="#reglas-list" hx-swap="innerHTML"
+              class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+            {% csrf_token %}
+            <input type="text" name="patron_texto" required placeholder="Patrón: COPEC, LIDER, UBER…"
+                class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-teal-500">
+            <select name="categoria_id" required class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-500">
+                <option value="">Categoría destino…</option>
+                {% for cat in categorias_para_reglas %}
+                <option value="{{ cat.id }}">{{ cat.nombre }}{% if not cat.espacio %} (global){% endif %}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl">Agregar regla</button>
+        </form>
+
+        <div id="reglas-list">{% include 'core/partials/reglas_list.html' %}</div>
+    </section>
+</div>
+{% endblock %}

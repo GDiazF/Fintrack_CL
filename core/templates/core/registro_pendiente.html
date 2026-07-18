@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Verifica tu email - Fintrack CL{% endblock %}
+
+{% block content %}
+<div class="min-h-[70vh] flex items-center justify-center">
+    <div class="w-full max-w-md space-y-6 text-center">
+        <div class="inline-flex p-4 rounded-2xl bg-gradient-to-tr from-teal-500/20 to-emerald-500/10 text-teal-400">
+            <i class="bi bi-envelope-check text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Revisa tu correo</h1>
+        <p class="text-sm text-slate-400 leading-relaxed">
+            Te enviamos un enlace para verificar tu cuenta. Ábrelo desde el mismo navegador
+            y quedará lista para usar.
+        </p>
+        <div class="glass p-6 rounded-2xl text-left space-y-3 text-sm text-slate-400">
+            <p>¿No llegó? Revisa spam o carpeta de promociones.</p>
+            <p>En local (sin SMTP), el enlace aparece en la <strong class="text-slate-300">terminal del runserver</strong>.</p>
+        </div>
+        <p class="text-sm text-slate-500">
+            <a href="{% url 'reenviar_verificacion' %}" class="text-teal-400 hover:text-teal-300">Reenviar verificación</a>
+            ·
+            <a href="{% url 'login' %}" class="text-teal-400 hover:text-teal-300">Ir al login</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

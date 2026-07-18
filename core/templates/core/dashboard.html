@@ -3,141 +3,171 @@
 {% block title %}Dashboard - Fintrack CL{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <!-- Header/Bienvenida -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-            <h1 class="text-3xl font-bold tracking-tight text-white">Resumen Financiero</h1>
-            <p class="text-sm text-slate-400 mt-1">Espacio de trabajo activo: <span class="text-teal-400 font-semibold">{{ espacio.nombre }}</span></p>
+            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">Resumen</h1>
+            <p class="text-sm text-slate-400 mt-1">{{ espacio.nombre }}</p>
         </div>
-        <button 
-            hx-get="{% url 'dashboard' %}" 
-            hx-target="#movimientos-tbody" 
-            class="glass hover:bg-slate-800 text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2 hover:scale-[1.01] active:scale-[0.99] transition-all"
+        <div class="flex flex-wrap items-center gap-2">
+            {% include 'core/partials/espacio_switcher.html' with next_url='/' %}
+            <a href="{% url 'export_csv' %}?mes={{ filtro_mes }}&categoria={{ filtro_categoria }}"
+               class="text-sm font-medium text-teal-400 hover:text-teal-300 px-3 py-2">
+                <i class="bi bi-download"></i> CSV
+            </a>
+        </div>
+    </div>
+
+    {% if fallidas_pendientes %}
+    <a href="{% url 'fallidas' %}" class="block rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+        <i class="bi bi-exclamation-triangle mr-1"></i>
+        {{ fallidas_pendientes }} fallida{{ fallidas_pendientes|pluralize }} pendiente{{ fallidas_pendientes|pluralize }}
+    </a>
+    {% endif %}
+
+    <!-- Cuentas arriba (pocos registros) -->
+    <section class="glass rounded-2xl p-4">
+        <div class="flex items-center justify-between gap-2 mb-3">
+            <h2 class="text-sm font-semibold text-white">Cuentas</h2>
+            <span class="text-[11px] text-slate-500">{{ cuentas|length }} vinculada{{ cuentas|length|pluralize }}</span>
+        </div>
+        {% if cuentas %}
+        <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {% for cuenta in cuentas %}
+            <div class="shrink-0 min-w-[10.5rem] rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ cuenta.institucion.color_hex }}"></span>
+                    <p class="text-sm text-slate-200 truncate">{{ cuenta.nombre }}</p>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1 truncate">{{ cuenta.institucion.nombre }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-slate-500">Sin cuentas aún. Aparecen al ingerir el primer movimiento.</p>
+        {% endif %}
+    </section>
+
+    <form method="get" class="glass rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+        <div class="col-span-2 sm:col-span-1">
+            <label class="block text-xs text-slate-500 mb-1">Mes</label>
+            <input type="month" name="mes" value="{{ filtro_mes }}"
+                   class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+        </div>
+        <div class="col-span-2 sm:col-span-1">
+            <label class="block text-xs text-slate-500 mb-1">Categoría</label>
+            <select name="categoria" class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+                <option value="">Todas</option>
+                <option value="sin" {% if filtro_categoria == 'sin' %}selected{% endif %}>Sin categoría</option>
+                {% for cat in categorias %}
+                <option value="{{ cat.id }}" {% if filtro_categoria == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Filtrar</button>
+        <a href="{% url 'dashboard' %}" class="text-center text-sm text-slate-400 hover:text-white py-2">Limpiar</a>
+    </form>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div class="glass p-4 sm:p-5 rounded-2xl">
+            <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Balance</p>
+            <p class="text-2xl sm:text-3xl font-bold text-white mt-2">${{ balance }}</p>
+        </div>
+        <div class="glass p-4 sm:p-5 rounded-2xl">
+            <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Ingresos</p>
+            <p class="text-2xl sm:text-3xl font-bold text-emerald-400 mt-2">+${{ ingresos }}</p>
+        </div>
+        <div class="glass p-4 sm:p-5 rounded-2xl">
+            <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Egresos</p>
+            <p class="text-2xl sm:text-3xl font-bold text-rose-400 mt-2">-${{ egresos }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="glass p-4 sm:p-5 rounded-2xl">
+            <h2 class="text-sm font-semibold text-white mb-3">Gastos por categoría</h2>
+            <div class="relative h-48 sm:h-56"><canvas id="chartCategorias"></canvas></div>
+        </div>
+        <div class="glass p-4 sm:p-5 rounded-2xl">
+            <h2 class="text-sm font-semibold text-white mb-3">Ingresos vs egresos</h2>
+            <div class="relative h-48 sm:h-56"><canvas id="chartMensual"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Movimientos a ancho completo -->
+    <section class="glass rounded-2xl overflow-hidden">
+        <div class="px-4 sm:px-5 py-4 border-b border-slate-800/50 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold text-white">Movimientos</h2>
+            <span class="text-[11px] text-slate-500">
+                {{ paginator.count }} en total · página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </span>
+        </div>
+        <div
+            hx-get="{% url 'dashboard' %}?{{ query_base }}page={{ page_obj.number }}"
+            hx-trigger="every 30s"
+            hx-select="#movimientos-panel"
+            hx-target="#movimientos-panel"
+            hx-swap="outerHTML"
         >
-            <i class="bi bi-arrow-clockwise text-teal-400"></i>
-            Actualizar
-        </button>
-    </div>
-
-    <!-- Indicadores Clave (Tarjetas) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Balance Total -->
-        <div class="glass p-6 rounded-2xl relative overflow-hidden group hover:border-slate-700/60 transition-all duration-300">
-            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-tr from-teal-500/20 to-emerald-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500"></div>
-            <div class="flex justify-between items-start">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Balance Estimado</span>
-                <span class="p-2 rounded-xl bg-teal-500/10 text-teal-400"><i class="bi bi-wallet2 text-lg"></i></span>
-            </div>
-            <div class="mt-4">
-                <h3 class="text-3xl font-bold text-slate-100">${{ balance }}</h3>
-                <p class="text-xs text-slate-500 mt-1">Consolidado en CLP</p>
-            </div>
+            {% include 'core/partials/movimientos_panel.html' %}
         </div>
-
-        <!-- Ingresos -->
-        <div class="glass p-6 rounded-2xl relative overflow-hidden group hover:border-slate-700/60 transition-all duration-300">
-            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-tr from-emerald-500/20 to-teal-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500"></div>
-            <div class="flex justify-between items-start">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Abonos / Ingresos</span>
-                <span class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400"><i class="bi bi-graph-up-arrow text-lg"></i></span>
-            </div>
-            <div class="mt-4">
-                <h3 class="text-3xl font-bold text-emerald-400">+ ${{ ingresos }}</h3>
-                <p class="text-xs text-slate-500 mt-1">Ingresos históricos registrados</p>
-            </div>
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="px-4 sm:px-5 py-3 border-t border-slate-800/50 flex items-center justify-between gap-3 text-sm">
+            {% if page_obj.has_previous %}
+            <a href="?{{ query_base }}page={{ page_obj.previous_page_number }}"
+               class="text-teal-400 hover:text-teal-300 font-medium">← Anterior</a>
+            {% else %}
+            <span class="text-slate-600">← Anterior</span>
+            {% endif %}
+            <span class="text-slate-500 text-xs">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span>
+            {% if page_obj.has_next %}
+            <a href="?{{ query_base }}page={{ page_obj.next_page_number }}"
+               class="text-teal-400 hover:text-teal-300 font-medium">Siguiente →</a>
+            {% else %}
+            <span class="text-slate-600">Siguiente →</span>
+            {% endif %}
         </div>
-
-        <!-- Egresos -->
-        <div class="glass p-6 rounded-2xl relative overflow-hidden group hover:border-slate-700/60 transition-all duration-300">
-            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-tr from-rose-500/20 to-orange-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform duration-500"></div>
-            <div class="flex justify-between items-start">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cargos / Gastos</span>
-                <span class="p-2 rounded-xl bg-rose-500/10 text-rose-400"><i class="bi bi-graph-down-arrow text-lg"></i></span>
-            </div>
-            <div class="mt-4">
-                <h3 class="text-3xl font-bold text-rose-400">- ${{ egresos }}</h3>
-                <p class="text-xs text-slate-500 mt-1">Gastos históricos registrados</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Grid de Cuentas y Movimientos -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Panel Izquierdo: Cuentas -->
-        <div class="lg:col-span-1 space-y-6">
-            <div class="glass p-6 rounded-2xl">
-                <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <i class="bi bi-bank text-teal-400"></i>
-                    Cuentas Vinculadas
-                </h2>
-                <div class="space-y-4">
-                    {% for cuenta in cuentas %}
-                    <div class="p-4 rounded-xl bg-slate-900/40 border border-slate-800 hover:border-slate-700/80 transition-all flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-semibold text-slate-200">{{ cuenta.nombre }}</p>
-                            <p class="text-xs text-slate-500 mt-0.5">{{ cuenta.institucion.nombre }}</p>
-                        </div>
-                        <span 
-                            class="inline-flex w-3.5 h-3.5 rounded-full border border-slate-900 shadow-md"
-                            style="background-color: {{ cuenta.institucion.color_hex }};"
-                            title="{{ cuenta.institucion.nombre }}"
-                        ></span>
-                    </div>
-                    {% empty %}
-                    <p class="text-sm text-slate-500 py-4 text-center">No hay cuentas asociadas a este espacio.</p>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Información del Script de Captura -->
-            <div class="glass p-6 rounded-2xl bg-gradient-to-br from-teal-950/20 to-slate-950/40 border-teal-500/10">
-                <h3 class="text-sm font-bold text-teal-300 mb-2 flex items-center gap-2">
-                    <i class="bi bi-stars"></i> Captura Automática Activa
-                </h3>
-                <p class="text-xs text-slate-400 leading-relaxed">
-                    Las notificaciones de compras y transferencias de BancoEstado se capturan y procesan de forma inmediata en segundo plano mediante Google Apps Script. No requiere ingresar contraseñas bancarias.
-                </p>
-            </div>
-        </div>
-
-        <!-- Panel Derecho: Movimientos Recientes -->
-        <div class="lg:col-span-2">
-            <div class="glass rounded-2xl overflow-hidden">
-                <div class="px-6 py-5 border-b border-slate-800/40 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                        <i class="bi bi-list-stars text-teal-400"></i>
-                        Últimos Movimientos
-                    </h2>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        Auto-poller activo (30s)
-                    </span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-800/40">
-                        <thead class="bg-slate-900/30">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Cuenta</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Detalle/Comercio</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Categoría</th>
-                                <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Monto</th>
-                            </tr>
-                        </thead>
-                        <tbody 
-                            id="movimientos-tbody" 
-                            class="divide-y divide-slate-800/20"
-                            hx-get="{% url 'dashboard' %}"
-                            hx-trigger="every 30s"
-                            hx-target="this"
-                        >
-                            {% include 'core/htmx_movimientos_list.html' %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+        {% endif %}
+    </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const payload = {{ chart_data_json|safe }};
+    const cat = payload.categorias || { labels: [], data: [], colors: [] };
+    const mes = payload.mensual || { labels: [], egresos: [], ingresos: [] };
+    const opts = { responsive: true, maintainAspectRatio: false };
+
+    if (document.getElementById('chartCategorias')) {
+        new Chart(document.getElementById('chartCategorias'), {
+            type: 'doughnut',
+            data: { labels: cat.labels, datasets: [{ data: cat.data, backgroundColor: cat.colors, borderWidth: 0 }] },
+            options: { ...opts, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 10, font: { size: 11 } } } } }
+        });
+    }
+    if (document.getElementById('chartMensual')) {
+        new Chart(document.getElementById('chartMensual'), {
+            type: 'bar',
+            data: {
+                labels: mes.labels,
+                datasets: [
+                    { label: 'Ingresos', data: mes.ingresos, backgroundColor: '#34d399' },
+                    { label: 'Egresos', data: mes.egresos, backgroundColor: '#fb7185' }
+                ]
+            },
+            options: {
+                ...opts,
+                scales: {
+                    x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } },
+                    y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } }
+                },
+                plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } }
+            }
+        });
+    }
+})();
+</script>
 {% endblock %}
