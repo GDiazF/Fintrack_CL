@@ -44,24 +44,29 @@ class WebhookSignatureAuthentication(authentication.BaseAuthentication):
         payload_bytes = request.body
         message_to_sign = payload_bytes + timestamp.encode('utf-8') + nonce.encode('utf-8')
 
-        expected_signature = hmac.new(
+        digest = hmac.new(
             api_secret_token.encode('utf-8'),
             message_to_sign,
-            hashlib.sha256
-        ).hexdigest()
+            hashlib.sha256,
+        ).digest()
 
-        if not hmac.compare_digest(expected_signature, signature):
-            # Diagnóstico temporal (no expone el secreto completo)
+        # Aceptar Base64 (GAS Utilities.base64Encode) o hex (clientes viejos / simulate)
+        import base64
+        expected_b64 = base64.b64encode(digest).decode('ascii')
+        expected_hex = digest.hex()
+        sig = (signature or '').strip()
+        ok = hmac.compare_digest(expected_b64, sig) or hmac.compare_digest(expected_hex, sig.lower())
+
+        if not ok:
             import logging
             logging.getLogger('fintrack.webhook').warning(
-                'HMAC mismatch key_id=%s body_len=%s body_sha256=%s ts=%s nonce=%s sig_recv=%s… sig_exp=%s…',
+                'HMAC mismatch key_id=%s body_len=%s body_sha256=%s ts=%s nonce=%s sig_recv=%s…',
                 key_id,
                 len(payload_bytes),
                 hashlib.sha256(payload_bytes).hexdigest()[:16],
                 timestamp,
                 nonce,
-                (signature or '')[:12],
-                expected_signature[:12],
+                sig[:16],
             )
             raise exceptions.AuthenticationFailed('Firma inválida. Acceso denegado')
 
