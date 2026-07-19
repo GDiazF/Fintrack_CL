@@ -20,8 +20,9 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.http import require_POST, require_http_methods
 
+from core.ingesta_service import intentar_ingesta_desde_raw
 from core.models import Usuario, PerfilUsuario, IngestaFallida
-from core.gas_template import build_gas_script
+from core.gas_template import BANCOS_DISPONIBLES, build_gas_script, normalizar_bancos
 from core.email_service import enviar_verificacion_email
 from core.utils import get_espacio_activo, espacios_del_usuario
 
@@ -246,10 +247,22 @@ def onboarding_view(request):
         else 'REEMPLAZA_GENERA_SCRIPT_NUEVO_EN_ONBOARDING'
     )
 
+    if request.GET.get('actualizar'):
+        raw = request.GET.getlist('banco')
+        if not raw:
+            messages.warning(request, 'Marca al menos un banco.')
+            bancos = normalizar_bancos(request.session.get('onboarding_bancos'))
+        else:
+            bancos = normalizar_bancos(raw)
+            request.session['onboarding_bancos'] = list(bancos)
+    else:
+        bancos = normalizar_bancos(request.session.get('onboarding_bancos'))
+
     gas_code = build_gas_script(
         api_key_id=perfil.api_key_id,
         api_secret=secreto_para_gas,
         endpoint_url=endpoint,
+        bancos=bancos,
     )
 
     return render(request, 'core/onboarding.html', {
@@ -260,6 +273,8 @@ def onboarding_view(request):
         'mostrar_onboarding': request.session.pop('mostrar_onboarding', False),
         'espacio': get_espacio_activo(request),
         'espacios': espacios_del_usuario(request.user),
+        'bancos_disponibles': BANCOS_DISPONIBLES.values(),
+        'bancos_seleccionados': set(bancos),
     })
 
 
@@ -299,4 +314,70 @@ def fallida_resolver(request, fallida_id):
     falla = get_object_or_404(IngestaFallida, pk=fallida_id, usuario=request.user)
     falla.resuelto = True
     falla.save(update_fields=['resuelto'])
+    return redirect('fallidas')
+
+
+@login_required(login_url='/login/')
+@require_POST
+def fallida_reintentar(request, fallida_id):
+    """Re-parsea el raw_text guardado con el parser actual (sin volver a Gmail)."""
+    falla = get_object_or_404(IngestaFallida, pk=fallida_id, usuario=request.user)
+    if falla.resuelto:
+        messages.info(request, 'Esta falla ya estaba resuelta.')
+        return redirect('fallidas')
+
+    resultado = intentar_ingesta_desde_raw(
+        user=request.user,
+        conector_id=falla.conector or 'gmail_bancoestado_v1',
+        gmail_message_id=falla.gmail_message_id,
+        fecha_correo=falla.fecha_correo,
+        raw_text=falla.raw_text,
+    )
+
+    if resultado.ok:
+        falla.resuelto = True
+        falla.save(update_fields=['resuelto'])
+        mov = resultado.movimiento
+        messages.success(
+            request,
+            f"Listo: ${mov.monto_clp} · {mov.comercio_raw} → {mov.cuenta.nombre}",
+        )
+    else:
+        falla.motivo_error = (resultado.motivo or 'Sin monto')[:255]
+        falla.save(update_fields=['motivo_error'])
+        messages.warning(request, f'Aún no se pudo parsear: {falla.motivo_error}')
+
+    return redirect('fallidas')
+
+
+@login_required(login_url='/login/')
+@require_POST
+def fallidas_reintentar_todas(request):
+    """Reintenta todas las fallidas pendientes del usuario."""
+    qs = IngestaFallida.objects.filter(usuario=request.user, resuelto=False)[:50]
+    ok_n = 0
+    fail_n = 0
+    for falla in qs:
+        resultado = intentar_ingesta_desde_raw(
+            user=request.user,
+            conector_id=falla.conector or 'gmail_bancoestado_v1',
+            gmail_message_id=falla.gmail_message_id,
+            fecha_correo=falla.fecha_correo,
+            raw_text=falla.raw_text,
+        )
+        if resultado.ok:
+            falla.resuelto = True
+            falla.save(update_fields=['resuelto'])
+            ok_n += 1
+        else:
+            falla.motivo_error = (resultado.motivo or 'Sin monto')[:255]
+            falla.save(update_fields=['motivo_error'])
+            fail_n += 1
+
+    if ok_n:
+        messages.success(request, f'{ok_n} movimiento(s) recuperado(s) desde Fallidas.')
+    if fail_n:
+        messages.warning(request, f'{fail_n} siguen sin parsearse. Revisa el texto o mejora el parser.')
+    if not ok_n and not fail_n:
+        messages.info(request, 'No hay fallidas pendientes.')
     return redirect('fallidas')

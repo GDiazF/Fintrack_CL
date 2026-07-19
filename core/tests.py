@@ -374,6 +374,24 @@ class FaseCOnboardingTestCase(TestCase):
         falla.refresh_from_db()
         self.assertTrue(falla.resuelto)
 
+    def test_fallida_reintentar_crea_movimiento(self):
+        from core.parsers.corpus_bancoestado import BE_PAGO_SERVICIOS
+        user = Usuario.objects.create_user(username='retryu', password='ClaveSegura123!')
+        PerfilUsuario.objects.filter(user=user).update(email_verificado=True)
+        self.client.login(username='retryu', password='ClaveSegura123!')
+        falla = IngestaFallida.objects.create(
+            usuario=user,
+            gmail_message_id='msg_retry_pago',
+            conector='gmail_bancoestado_v1',
+            raw_text=BE_PAGO_SERVICIOS,
+            motivo_error='parser viejo',
+        )
+        response = self.client.post(f'/fallidas/{falla.id}/reintentar/')
+        self.assertEqual(response.status_code, 302)
+        falla.refresh_from_db()
+        self.assertTrue(falla.resuelto)
+        self.assertTrue(Movimiento.objects.filter(gmail_message_id='msg_retry_pago').exists())
+
 
 class FaseEParsersNormalizacionTestCase(TestCase):
     def test_santander_compra(self):
@@ -383,6 +401,14 @@ class FaseEParsersNormalizacionTestCase(TestCase):
         self.assertEqual(data['tipo'], 'EGRESO')
         self.assertEqual(data['monto'], 12990)
         self.assertIn('LIDER', data['comercio_raw'].upper())
+
+    def test_santander_comprobante_transferencia(self):
+        from core.parsers.factory import SantanderParserV1
+        from core.parsers.corpus_santander import SA_COMPROBANTE_TRANSFERENCIA
+        data = SantanderParserV1().parsear(SA_COMPROBANTE_TRANSFERENCIA)
+        self.assertEqual(data['tipo'], 'TRANSFERENCIA')
+        self.assertEqual(data['monto'], 3200)
+        self.assertIn('VICTOR', data['comercio_raw'].upper())
 
     def test_bci_compra_y_factory(self):
         from core.parsers.factory import BciParserV1, ParserFactory
@@ -409,6 +435,81 @@ class FaseEParsersNormalizacionTestCase(TestCase):
         response = self.client.get('/export/csv/')
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/csv', response['Content-Type'])
+
+    def test_gas_script_solo_bancoestado(self):
+        from core.gas_template import build_gas_script, build_gmail_search_query
+        code = build_gas_script(
+            api_key_id='k',
+            api_secret='s',
+            endpoint_url='http://example/',
+            bancos=['bancoestado'],
+        )
+        self.assertIn('from:bancoestado.cl', code)
+        self.assertIn('subject:"Notificación de compra"', code)
+        self.assertIn('subject:"Comprobante de pago de servicios"', code)
+        self.assertIn('subject:"Aviso de envío o recepción de dinero"', code)
+        self.assertIn(', 0, 50)', code)
+        self.assertNotIn('santander.cl', code)
+        self.assertNotIn('bci.cl', code)
+
+        q = build_gmail_search_query(['santander'])
+        self.assertIn('Comprobante Transferencia de fondos', q)
+        self.assertNotIn('bancoestado', q)
+
+    def test_be_pago_servicios_y_aviso(self):
+        from core.parsers.factory import BancoEstadoParserV1
+        from core.parsers.corpus_bancoestado import (
+            BE_PAGO_SERVICIOS, BE_AVISO_ENVIO, BE_AVISO_RECEPCION,
+        )
+        p = BancoEstadoParserV1()
+        pago = p.parsear(BE_PAGO_SERVICIOS)
+        self.assertEqual(pago['tipo'], 'EGRESO')
+        self.assertEqual(pago['monto'], 45890)
+        self.assertIn('AGUAS', pago['comercio_raw'].upper())
+
+        envio = p.parsear(BE_AVISO_ENVIO)
+        self.assertEqual(envio['tipo'], 'TRANSFERENCIA')
+        self.assertEqual(envio['monto'], 12000)
+
+        recep = p.parsear(BE_AVISO_RECEPCION)
+        self.assertEqual(recep['tipo'], 'INGRESO')
+        self.assertEqual(recep['monto'], 80000)
+
+    def test_comercio_no_captura_marketing(self):
+        from core.parsers.factory import BancoEstadoParserV1, SantanderParserV1
+        be = (
+            "BancoEstado: confirmamos tu compra por un monto de $5.000 "
+            "en COPEC EXPRESS con tu tarjeta *1234 el 18/07/2026.\n\n"
+            "Antes de imprimir este correo, pregúntate si realmente necesitas "
+            "una copia en papel. Infórmese sobre la garantía estatal..."
+        )
+        data = BancoEstadoParserV1().parsear(be)
+        self.assertEqual(data['comercio_raw'], 'COPEC EXPRESS')
+        self.assertNotIn('sección', data['comercio_raw'].lower())
+        self.assertNotIn('garantía', data['comercio_raw'].lower())
+
+        sa = (
+            "Santander: Notifica Compra por $4.000\n"
+            "Lugar: STARBUCKS CAFE\n"
+            "Fecha: 18/07/2026\n\n"
+            "mundial y tú puedes acompañarlas Participa por uno de los dos viajes"
+        )
+        data_sa = SantanderParserV1().parsear(sa)
+        self.assertEqual(data_sa['comercio_raw'], 'STARBUCKS CAFE')
+
+    def test_cuentas_separadas_por_tarjeta(self):
+        from core.ingesta_service import resolver_o_crear_cuenta
+        from core.models import Espacio, InstitucionFinanciera, CuentaFinanciera
+        user = Usuario.objects.create_user(username='carduser', password='ClaveSegura123!')
+        espacio = Espacio.objects.create(nombre='E', administrador=user)
+        inst, _ = InstitucionFinanciera.objects.get_or_create(nombre='BancoEstado', defaults={'tipo': 'BANCO'})
+        c_gen = resolver_o_crear_cuenta(espacio, inst, None)
+        c1234 = resolver_o_crear_cuenta(espacio, inst, '1234')
+        c5678 = resolver_o_crear_cuenta(espacio, inst, '5678')
+        self.assertNotEqual(c_gen.id, c1234.id)
+        self.assertNotEqual(c1234.id, c5678.id)
+        self.assertEqual(CuentaFinanciera.objects.filter(espacio=espacio).count(), 3)
+        self.assertEqual(resolver_o_crear_cuenta(espacio, inst, '1234').id, c1234.id)
 
 
 class EmailAuthTests(TestCase):

@@ -7,7 +7,7 @@
         {{ mov.cuenta.nombre }}
     </td>
     <td class="py-3 pr-3 text-sm text-slate-100 font-medium">
-        <div class="truncate" title="{{ mov.comercio_raw }}">{{ mov.comercio_raw }}</div>
+        <div class="truncate" title="{{ mov.comercio_raw }}">{% if mov.comercio %}{{ mov.comercio.nombre_fantasia }}{% else %}{{ mov.comercio_raw }}{% endif %}</div>
         <div class="text-[11px] text-slate-500 mt-0.5">
             {% if mov.tipo == 'EGRESO' or mov.tipo == 'COMISION' %}Egreso
             {% elif mov.tipo == 'INGRESO' %}Ingreso

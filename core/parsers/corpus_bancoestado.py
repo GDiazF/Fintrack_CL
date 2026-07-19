@@ -30,10 +30,29 @@ BE_SIN_MONTO = (
     "Revisa los detalles en la app."
 )
 
+BE_PAGO_SERVICIOS = (
+    "BancoEstado: Comprobante de pago de servicios.\n"
+    "Hola, pagaste a AGUAS ANDINAS por un monto de $45.890 el 10/07/2026 "
+    "desde tu CuentaRUT."
+)
+
+BE_AVISO_ENVIO = (
+    "BancoEstado: Aviso de envío o recepción de dinero.\n"
+    "Hola, enviaste dinero por $12.000 a MARIA GONZALEZ el 11/07/2026."
+)
+
+BE_AVISO_RECEPCION = (
+    "BancoEstado: Aviso de envío o recepción de dinero.\n"
+    "Hola, recibiste dinero por $80.000 de EMPRESA SPA el 12/07/2026."
+)
+
 CORPUS_BANCOESTADO_V1 = {
     'compra': BE_COMPRA,
     'compra_copec': BE_COMPRA_COPEC,
     'transferencia': BE_TRANSFERENCIA,
     'ingreso': BE_INGRESO,
     'sin_monto': BE_SIN_MONTO,
+    'pago_servicios': BE_PAGO_SERVICIOS,
+    'aviso_envio': BE_AVISO_ENVIO,
+    'aviso_recepcion': BE_AVISO_RECEPCION,
 }

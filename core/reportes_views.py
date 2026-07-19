@@ -82,6 +82,7 @@ def export_csv_view(request):
 
     mes_param = (request.GET.get('mes') or '').strip()
     categoria_id = (request.GET.get('categoria') or '').strip()
+    cuenta_id = (request.GET.get('cuenta') or '').strip()
 
     if mes_param and len(mes_param) >= 7:
         try:
@@ -97,6 +98,12 @@ def export_csv_view(request):
     elif categoria_id:
         try:
             qs = qs.filter(categoria_id=int(categoria_id))
+        except ValueError:
+            pass
+
+    if cuenta_id:
+        try:
+            qs = qs.filter(cuenta_id=int(cuenta_id), cuenta__espacio=espacio)
         except ValueError:
             pass
 

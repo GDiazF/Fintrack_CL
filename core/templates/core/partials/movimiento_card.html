@@ -3,7 +3,7 @@
      class="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-            <p class="text-sm font-semibold text-white truncate">{{ mov.comercio_raw }}</p>
+            <p class="text-sm font-semibold text-white truncate" title="{{ mov.comercio_raw }}">{% if mov.comercio %}{{ mov.comercio.nombre_fantasia }}{% else %}{{ mov.comercio_raw }}{% endif %}</p>
             <p class="text-xs text-slate-500 mt-0.5">
                 {{ mov.fecha_transaccion|date:"d M Y, H:i" }} · {{ mov.cuenta.nombre }}
             </p>

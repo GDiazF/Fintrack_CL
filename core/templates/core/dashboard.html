@@ -11,7 +11,7 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
             {% include 'core/partials/espacio_switcher.html' with next_url='/' %}
-            <a href="{% url 'export_csv' %}?mes={{ filtro_mes }}&categoria={{ filtro_categoria }}"
+            <a href="{% url 'export_csv' %}?mes={{ filtro_mes }}&categoria={{ filtro_categoria }}&cuenta={{ filtro_cuenta }}"
                class="text-sm font-medium text-teal-400 hover:text-teal-300 px-3 py-2">
                 <i class="bi bi-download"></i> CSV
             </a>
@@ -33,14 +33,19 @@
         </div>
         {% if cuentas %}
         <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <a href="?{% if filtro_mes %}mes={{ filtro_mes }}&{% endif %}{% if filtro_categoria %}categoria={{ filtro_categoria }}&{% endif %}"
+               class="shrink-0 min-w-[7rem] rounded-xl border px-3 py-2.5 text-center {% if not filtro_cuenta %}border-teal-500/50 bg-teal-500/10{% else %}border-slate-800 bg-slate-900/40 hover:border-slate-600{% endif %}">
+                <p class="text-sm text-slate-200">Todas</p>
+            </a>
             {% for cuenta in cuentas %}
-            <div class="shrink-0 min-w-[10.5rem] rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+            <a href="?cuenta={{ cuenta.id }}{% if filtro_mes %}&mes={{ filtro_mes }}{% endif %}{% if filtro_categoria %}&categoria={{ filtro_categoria }}{% endif %}"
+               class="shrink-0 min-w-[10.5rem] rounded-xl border px-3 py-2.5 {% if filtro_cuenta == cuenta.id|stringformat:'s' %}border-teal-500/50 bg-teal-500/10{% else %}border-slate-800 bg-slate-900/40 hover:border-slate-600{% endif %}">
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ cuenta.institucion.color_hex }}"></span>
                     <p class="text-sm text-slate-200 truncate">{{ cuenta.nombre }}</p>
                 </div>
                 <p class="text-[11px] text-slate-500 mt-1 truncate">{{ cuenta.institucion.nombre }}</p>
-            </div>
+            </a>
             {% endfor %}
         </div>
         {% else %}
@@ -48,11 +53,20 @@
         {% endif %}
     </section>
 
-    <form method="get" class="glass rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+    <form method="get" class="glass rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
         <div class="col-span-2 sm:col-span-1">
             <label class="block text-xs text-slate-500 mb-1">Mes</label>
             <input type="month" name="mes" value="{{ filtro_mes }}"
                    class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+        </div>
+        <div class="col-span-2 sm:col-span-1">
+            <label class="block text-xs text-slate-500 mb-1">Cuenta</label>
+            <select name="cuenta" class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+                <option value="">Todas</option>
+                {% for cuenta in cuentas %}
+                <option value="{{ cuenta.id }}" {% if filtro_cuenta == cuenta.id|stringformat:"s" %}selected{% endif %}>{{ cuenta.nombre }}</option>
+                {% endfor %}
+            </select>
         </div>
         <div class="col-span-2 sm:col-span-1">
             <label class="block text-xs text-slate-500 mb-1">Categoría</label>

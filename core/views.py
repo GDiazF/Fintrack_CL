@@ -1,9 +1,8 @@
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db import transaction, IntegrityError
+from django.db import IntegrityError
 from django.db.models import Q, Sum
 from django.utils.dateparse import parse_datetime
-from django.utils.timezone import now
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
@@ -16,12 +15,9 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
 from core.authentication import WebhookSignatureAuthentication
-from core.categorizacion import resolver_categoria_por_reglas
-from core.normalizacion import resolver_comercio
-from core.parsers.factory import ParserFactory
+from core.ingesta_service import intentar_ingesta_desde_raw
 from core.models import (
-    Espacio, InstitucionFinanciera, CuentaFinanciera,
-    Moneda, Movimiento, IngestaFallida, Categoria, PerfilUsuario,
+    CuentaFinanciera, Movimiento, IngestaFallida, Categoria, PerfilUsuario,
 )
 from core.utils import get_espacio_activo, espacios_del_usuario
 from core.reportes_views import build_chart_payload, registrar_auditoria
@@ -79,144 +75,37 @@ class IngestaView(APIView):
 
         fecha_correo = parse_datetime(fecha_correo_str)
 
-        # Resolver parser
-        parser = ParserFactory.get(conector_id)
-        if not parser:
-            return self._registrar_falla(
-                request.user,
-                gmail_message_id=gmail_message_id,
-                conector=conector_id or '',
-                fecha_correo=fecha_correo,
-                raw_text=raw_text,
-                motivo=f"Conector '{conector_id}' no soportado",
-            )
+        resultado = intentar_ingesta_desde_raw(
+            user=request.user,
+            conector_id=conector_id,
+            gmail_message_id=gmail_message_id,
+            fecha_correo=fecha_correo,
+            raw_text=raw_text,
+        )
 
-        # Ejecutar Parsing
-        try:
-            parsed_data = parser.parsear(raw_text)
-        except Exception as e:
-            return self._registrar_falla(
-                request.user,
-                gmail_message_id=gmail_message_id,
-                conector=conector_id,
-                fecha_correo=fecha_correo,
-                raw_text=raw_text,
-                motivo=f"Error al procesar parsing: {e}",
-            )
-
-        monto = parsed_data.get('monto')
-        comercio_raw = parsed_data.get('comercio_raw')
-        identificador_tarjeta = parsed_data.get('identificador_tarjeta')
-        tipo_movimiento = parsed_data.get('tipo', 'EGRESO')
-
-        if not monto:
-            return self._registrar_falla(
-                request.user,
-                gmail_message_id=gmail_message_id,
-                conector=conector_id,
-                fecha_correo=fecha_correo,
-                raw_text=raw_text,
-                motivo='No se pudo extraer un monto válido de la notificación',
-            )
-
-        user = request.user
-        fecha_transaccion = fecha_correo or now()
-
-        try:
-            with transaction.atomic():
-                espacio = Espacio.objects.filter(
-                    Q(administrador=user) | Q(miembros=user)
-                ).first()
-                if not espacio:
-                    espacio = Espacio.objects.create(
-                        nombre="Mi Espacio Principal",
-                        administrador=user
-                    )
-
-                nombre_institucion = "BancoEstado"
-                if "santander" in conector_id:
-                    nombre_institucion = "Santander"
-                elif "bci" in conector_id:
-                    nombre_institucion = "BCI"
-
-                institucion, _ = InstitucionFinanciera.objects.get_or_create(
-                    nombre=nombre_institucion,
-                    defaults={'tipo': 'BANCO'}
-                )
-
-                cuenta = None
-                if identificador_tarjeta:
-                    cuenta = CuentaFinanciera.objects.filter(
-                        espacio=espacio,
-                        institucion=institucion,
-                        identificador_conector=identificador_tarjeta
-                    ).first()
-
-                if not cuenta:
-                    cuenta = CuentaFinanciera.objects.filter(
-                        espacio=espacio,
-                        institucion=institucion,
-                        es_predeterminada=True
-                    ).first()
-
-                if not cuenta:
-                    cuenta_nombre = f"Cuenta {nombre_institucion}"
-                    if identificador_tarjeta:
-                        cuenta_nombre += f" (*{identificador_tarjeta})"
-                    cuenta = CuentaFinanciera.objects.create(
-                        espacio=espacio,
-                        institucion=institucion,
-                        nombre=cuenta_nombre,
-                        identificador_conector=identificador_tarjeta,
-                        es_predeterminada=True
-                    )
-
-                moneda, _ = Moneda.objects.get_or_create(
-                    codigo_iso='CLP',
-                    defaults={'simbolo': '$', 'decimales': 0}
-                )
-
-                comercio = resolver_comercio(comercio_raw)
-
-                categoria = None
-                if comercio and comercio.categoria_sugerida:
-                    categoria = comercio.categoria_sugerida
-
-                if not categoria:
-                    categoria = resolver_categoria_por_reglas(espacio, comercio_raw)
-
-                movimiento = Movimiento.objects.create(
-                    cuenta=cuenta,
-                    comercio=comercio,
-                    comercio_raw=comercio_raw,
-                    categoria=categoria,
-                    fecha_transaccion=fecha_transaccion,
-                    monto_original=monto,
-                    moneda_original=moneda,
-                    monto_clp=int(monto),
-                    tipo=tipo_movimiento,
-                    raw_text=raw_text,
-                    conector_origen=conector_id,
-                    gmail_message_id=gmail_message_id
-                )
-
+        if resultado.ok and resultado.movimiento:
+            movimiento = resultado.movimiento
             return Response(
                 {
-                    'status': 'success',
+                    'status': 'success' if not resultado.ya_existia else 'ok',
                     'movimiento_id': movimiento.id,
                     'monto': movimiento.monto_clp,
                     'comercio': movimiento.comercio_raw,
                     'cuenta': movimiento.cuenta.nombre,
                     'tipo': movimiento.tipo,
+                    'detail': 'Mensaje duplicado procesado anteriormente' if resultado.ya_existia else None,
                 },
-                status=status.HTTP_201_CREATED
+                status=status.HTTP_201_CREATED if not resultado.ya_existia else status.HTTP_200_OK,
             )
 
-        except IntegrityError:
-            return Response(
-                {'status': 'ok', 'detail': 'Registro duplicado procesado concurrentemente'},
-                status=status.HTTP_200_OK
-            )
+        return self._registrar_falla(
+            request.user,
+            gmail_message_id=gmail_message_id,
+            conector=conector_id or '',
+            fecha_correo=fecha_correo,
+            raw_text=raw_text,
+            motivo=resultado.motivo or 'No se pudo procesar la notificación',
+        )
 
     def _registrar_falla(self, user, *, gmail_message_id, conector, fecha_correo, raw_text, motivo):
         """
@@ -252,10 +141,10 @@ class IngestaView(APIView):
 def dashboard_view(request):
     """
     Vista HTML del Dashboard Principal utilizando Django Templates, HTMX y Tailwind.
-    Soporta filtros por mes (YYYY-MM) y categoría.
+    Soporta filtros por mes (YYYY-MM), categoría y cuenta.
     """
     espacio = get_espacio_activo(request)
-    cuentas = CuentaFinanciera.objects.filter(espacio=espacio)
+    cuentas = CuentaFinanciera.objects.filter(espacio=espacio).select_related('institucion')
 
     base_qs = Movimiento.objects.filter(cuenta__espacio=espacio).select_related(
         'cuenta', 'cuenta__institucion', 'comercio', 'categoria'
@@ -263,6 +152,7 @@ def dashboard_view(request):
 
     mes_param = (request.GET.get('mes') or '').strip()
     categoria_id = (request.GET.get('categoria') or '').strip()
+    cuenta_id = (request.GET.get('cuenta') or '').strip()
 
     filtrado = base_qs
     if mes_param and len(mes_param) >= 7:
@@ -284,6 +174,12 @@ def dashboard_view(request):
                 filtrado = filtrado.filter(categoria_id=int(categoria_id))
             except ValueError:
                 pass
+
+    if cuenta_id:
+        try:
+            filtrado = filtrado.filter(cuenta_id=int(cuenta_id), cuenta__espacio=espacio)
+        except ValueError:
+            pass
 
     egresos = filtrado.filter(tipo__in=['EGRESO', 'COMISION']).aggregate(
         t=Sum('monto_clp')
@@ -313,6 +209,8 @@ def dashboard_view(request):
         query_base += f'mes={mes_param}&'
     if categoria_id:
         query_base += f'categoria={categoria_id}&'
+    if cuenta_id:
+        query_base += f'cuenta={cuenta_id}&'
 
     context = {
         'espacio': espacio,
@@ -328,6 +226,7 @@ def dashboard_view(request):
         'categorias': categorias,
         'filtro_mes': mes_param,
         'filtro_categoria': categoria_id,
+        'filtro_cuenta': cuenta_id,
         'fallidas_pendientes': fallidas_pendientes,
         'chart_data_json': json.dumps(chart_data),
     }

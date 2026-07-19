@@ -7,7 +7,7 @@ from core.hmac_echo import HmacEchoView
 from core.auth_views import (
     register_view, registro_pendiente_view, verificar_email_view, reenviar_verificacion_view,
     perfil_view, onboarding_view, confirmar_secreto, rotar_secreto,
-    fallidas_view, fallida_resolver,
+    fallidas_view, fallida_resolver, fallida_reintentar, fallidas_reintentar_todas,
     FintrackPasswordResetView, FintrackPasswordResetDoneView,
     FintrackPasswordResetConfirmView, FintrackPasswordResetCompleteView,
 )
@@ -43,6 +43,8 @@ urlpatterns = [
     path('perfil/rotar-secreto/', rotar_secreto, name='rotar_secreto'),
     path('fallidas/', fallidas_view, name='fallidas'),
     path('fallidas/<int:fallida_id>/resolver/', fallida_resolver, name='fallida_resolver'),
+    path('fallidas/<int:fallida_id>/reintentar/', fallida_reintentar, name='fallida_reintentar'),
+    path('fallidas/reintentar-todas/', fallidas_reintentar_todas, name='fallidas_reintentar_todas'),
 
     path('organizacion/', organizacion_view, name='organizacion'),
     path('organizacion/categorias/crear/', categoria_crear, name='categoria_crear'),

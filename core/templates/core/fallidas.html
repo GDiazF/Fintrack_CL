@@ -4,13 +4,22 @@
 
 {% block content %}
 <div class="space-y-6">
-    {% include 'core/partials/page_intro.html' with page_title="Ingestas fallidas" page_lead="Cuando un correo llega al webhook pero el sistema no puede extraer un monto o no reconoce el formato, se guarda aquí en lugar de perderse. Sirve para revisar el texto, mejorar el parser y marcar el caso como resuelto." page_hint="En local puedes forzar una falla con un raw_text sin monto en simulate_webhook. En producción verás mails reales que no matchearon." %}
+    {% include 'core/partials/page_intro.html' with page_title="Ingestas fallidas" page_lead="Cuando un correo llega al webhook pero el sistema no puede extraer un monto o no reconoce el formato, se guarda aquí en lugar de perderse. Puedes reintentar el parseo cuando mejoremos el parser, sin volver a Gmail." page_hint="Tras actualizar parsers, usa “Reintentar” o “Reintentar todas”." %}
 
-    {% if pendientes %}
-    <div class="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-        {{ pendientes }} pendiente{{ pendientes|pluralize }} de revisión
+    <div class="flex flex-wrap items-center gap-3">
+        {% if pendientes %}
+        <div class="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {{ pendientes }} pendiente{{ pendientes|pluralize }} de revisión
+        </div>
+        <form method="post" action="{% url 'fallidas_reintentar_todas' %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="text-sm font-semibold px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white">
+                Reintentar todas (máx. 50)
+            </button>
+        </form>
+        {% endif %}
     </div>
-    {% endif %}
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {% for f in fallidas %}
@@ -22,10 +31,20 @@
                     <p class="text-xs text-slate-500 mt-1">{{ f.conector|default:"—" }} · {{ f.creado_en|date:"d M Y H:i" }}</p>
                 </div>
                 {% if not f.resuelto %}
-                <form method="post" action="{% url 'fallida_resolver' f.id %}" class="shrink-0">
-                    {% csrf_token %}
-                    <button class="text-xs font-semibold text-teal-400 hover:text-teal-300 whitespace-nowrap">Marcar resuelto</button>
-                </form>
+                <div class="flex flex-col items-end gap-2 shrink-0">
+                    <form method="post" action="{% url 'fallida_reintentar' f.id %}">
+                        {% csrf_token %}
+                        <button class="text-xs font-semibold text-teal-400 hover:text-teal-300 whitespace-nowrap">
+                            Reintentar parser
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'fallida_resolver' f.id %}">
+                        {% csrf_token %}
+                        <button class="text-xs font-semibold text-slate-500 hover:text-slate-300 whitespace-nowrap">
+                            Marcar resuelto
+                        </button>
+                    </form>
+                </div>
                 {% else %}
                 <span class="text-xs text-slate-500">Resuelto</span>
                 {% endif %}
