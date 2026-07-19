@@ -37,7 +37,13 @@ class IngestaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        data = request.data
+        # Preferir body crudo (mismo bytes que firmó el GAS). request.data a veces
+        # diverge si el cliente manda Content-Type raro.
+        import json as _json
+        try:
+            data = _json.loads(request.body.decode('utf-8'))
+        except Exception:
+            data = request.data
         conector_id = data.get('conector')
         gmail_message_id = data.get('gmail_message_id')
         fecha_correo_str = data.get('fecha_correo')
