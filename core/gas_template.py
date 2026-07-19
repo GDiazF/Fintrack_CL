@@ -9,7 +9,7 @@ def build_gas_script(*, api_key_id, api_secret, endpoint_url):
 
     return f'''/**
  * Fintrack CL — Cliente Gmail
- * Ejecuta primero: probarConexionFintrack
+ * 1) probarConexionFintrack  2) activador → enviarCorreosAlServidor
  */
 var API_KEY_ID = "{api_key_id}";
 var API_SECRET = "{api_secret}";
@@ -17,23 +17,19 @@ var ENDPOINT_URL = "{endpoint_url}";
 var ETIQUETA_PROCESADO = "fintrack-procesado";
 
 function _firmar(payloadStr, timestamp, nonce) {{
-  var msg = payloadStr + timestamp + nonce;
-  var firmaBytes = Utilities.computeHmacSha256Signature(msg, API_SECRET);
-  // Base64 nativo de Apps Script (evita bugs al convertir a hex)
+  var firmaBytes = Utilities.computeHmacSha256Signature(payloadStr + timestamp + nonce, API_SECRET);
   return Utilities.base64Encode(firmaBytes);
 }}
 
 function _postFintrack(payloadStr) {{
   var timestamp = Math.floor(Date.now() / 1000).toString();
   var nonce = Utilities.getUuid().replace(/-/g, "").substring(0, 16);
-  var firma = _firmar(payloadStr, timestamp, nonce);
-
   return UrlFetchApp.fetch(ENDPOINT_URL, {{
     method: "post",
     contentType: "text/plain; charset=utf-8",
     headers: {{
       "X-Key-ID": API_KEY_ID,
-      "X-Signature": firma,
+      "X-Signature": _firmar(payloadStr, timestamp, nonce),
       "X-Timestamp": timestamp,
       "X-Nonce": nonce
     }},
@@ -66,10 +62,10 @@ function enviarCorreosAlServidor() {{
         fecha_correo: mensaje.getDate().toISOString(),
         raw_text: mensaje.getPlainBody()
       }});
-      var respuesta = _postFintrack(payloadStr);
-      var codigo = respuesta.getResponseCode();
-      if (codigo === 200 || codigo === 201) hilos[i].addLabel(etiqueta);
-      else Logger.log("Fintrack HTTP " + codigo + ": " + respuesta.getContentText());
+      var r = _postFintrack(payloadStr);
+      var c = r.getResponseCode();
+      if (c === 200 || c === 201) hilos[i].addLabel(etiqueta);
+      else Logger.log("Fintrack HTTP " + c + ": " + r.getContentText());
     }}
   }}
 }}

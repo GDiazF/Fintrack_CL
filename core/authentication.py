@@ -41,7 +41,9 @@ class WebhookSignatureAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed('Credenciales de API no válidas')
 
         # 3. Validación y verificación criptográfica de la firma
-        payload_bytes = request.body
+        # Usar el HttpRequest crudo (evita rarezas del wrapper DRF con el body)
+        django_request = getattr(request, '_request', request)
+        payload_bytes = django_request.body
         message_to_sign = payload_bytes + timestamp.encode('utf-8') + nonce.encode('utf-8')
 
         digest = hmac.new(
