@@ -26,7 +26,9 @@ function _hexFromBytes(firmaBytes) {{
 /** Firma HMAC-SHA256 sobre los bytes UTF-8 exactos (igual que el backend Django). */
 function _firmar(payloadStr, timestamp, nonce) {{
   var stringParaFirmar = payloadStr + timestamp + nonce;
-  var firmaBytes = Utilities.computeHmacSha256Signature(stringParaFirmar, API_SECRET);
+  var msgBytes = Utilities.newBlob(stringParaFirmar).getBytes();
+  var keyBytes = Utilities.newBlob(API_SECRET).getBytes();
+  var firmaBytes = Utilities.computeHmacSha256Signature(msgBytes, keyBytes);
   return _hexFromBytes(firmaBytes);
 }}
 
@@ -36,8 +38,6 @@ function _postFintrack(payloadObj) {{
   var nonce = Utilities.getUuid().replace(/-/g, "").substring(0, 16);
   var firmaHex = _firmar(payloadStr, timestamp, nonce);
 
-  // Importante: NO usar contentType aparte — evita que UrlFetch re-serialice el JSON
-  // y rompa la firma. El body debe ser exactamente payloadStr.
   var opciones = {{
     method: "post",
     headers: {{
@@ -47,7 +47,7 @@ function _postFintrack(payloadObj) {{
       "X-Timestamp": timestamp,
       "X-Nonce": nonce
     }},
-    payload: payloadStr,
+    payload: Utilities.newBlob(payloadStr).getBytes(),
     muteHttpExceptions: true
   }};
 
@@ -60,12 +60,31 @@ function probarConexionFintrack() {{
     Logger.log("API_SECRET inválido. Genera script nuevo en Onboarding.");
     return;
   }}
-  var resp = _postFintrack({{
-    conector: "gmail_bancoestado_v1",
-    gmail_message_id: "gas_test_" + Date.now(),
-    fecha_correo: new Date().toISOString(),
-    raw_text: "BancoEstado: compra de prueba Fintrack por $1.000 en COPEC el 18/07/2026."
-  }});
+  // Payload FIJO (mismo string que en el diagnóstico del servidor)
+  var payloadStr = '{{"conector":"gmail_bancoestado_v1","gmail_message_id":"gas_probe_1","fecha_correo":"2026-07-18T12:00:00.000Z","raw_text":"hola fintrack"}}';
+  var timestamp = Math.floor(Date.now() / 1000).toString();
+  var nonce = "probe" + Utilities.getUuid().replace(/-/g, "").substring(0, 8);
+  var firmaHex = _firmar(payloadStr, timestamp, nonce);
+
+  Logger.log("KEY_ID=" + API_KEY_ID);
+  Logger.log("SECRET_PREFIX=" + API_SECRET.substring(0, 12));
+  Logger.log("BODY=" + payloadStr);
+  Logger.log("TS=" + timestamp + " NONCE=" + nonce);
+  Logger.log("SIG=" + firmaHex);
+
+  var opciones = {{
+    method: "post",
+    headers: {{
+      "Content-Type": "application/json; charset=utf-8",
+      "X-Key-ID": API_KEY_ID,
+      "X-Signature": firmaHex,
+      "X-Timestamp": timestamp,
+      "X-Nonce": nonce
+    }},
+    payload: Utilities.newBlob(payloadStr).getBytes(),
+    muteHttpExceptions: true
+  }};
+  var resp = UrlFetchApp.fetch(ENDPOINT_URL, opciones);
   Logger.log("HTTP " + resp.getResponseCode() + ": " + resp.getContentText());
 }}
 

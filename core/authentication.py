@@ -51,6 +51,18 @@ class WebhookSignatureAuthentication(authentication.BaseAuthentication):
         ).hexdigest()
 
         if not hmac.compare_digest(expected_signature, signature):
+            # Diagnóstico temporal (no expone el secreto completo)
+            import logging
+            logging.getLogger('fintrack.webhook').warning(
+                'HMAC mismatch key_id=%s body_len=%s body_sha256=%s ts=%s nonce=%s sig_recv=%s… sig_exp=%s…',
+                key_id,
+                len(payload_bytes),
+                hashlib.sha256(payload_bytes).hexdigest()[:16],
+                timestamp,
+                nonce,
+                (signature or '')[:12],
+                expected_signature[:12],
+            )
             raise exceptions.AuthenticationFailed('Firma inválida. Acceso denegado')
 
         # 4. Registrar nonce (único por perfil) — rechaza reutilización
