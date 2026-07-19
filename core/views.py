@@ -37,13 +37,21 @@ class IngestaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        # Preferir body crudo (mismo bytes que firmó el GAS). request.data a veces
-        # diverge si el cliente manda Content-Type raro.
+        # Body crudo firmado por GAS. Puede ser JSON directo (simulate) o Base64(JSON)
+        # para evitar problemas de UTF-8 con UrlFetch + mails reales.
+        import base64 as _b64
         import json as _json
+        raw = request.body
+        data = None
         try:
-            data = _json.loads(request.body.decode('utf-8'))
+            data = _json.loads(raw.decode('utf-8'))
         except Exception:
-            data = request.data
+            try:
+                data = _json.loads(_b64.b64decode(raw).decode('utf-8'))
+            except Exception:
+                data = request.data if isinstance(request.data, dict) else {}
+        if not isinstance(data, dict):
+            data = {}
         conector_id = data.get('conector')
         gmail_message_id = data.get('gmail_message_id')
         fecha_correo_str = data.get('fecha_correo')
