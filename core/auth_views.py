@@ -240,7 +240,11 @@ def onboarding_view(request):
 
     endpoint = f"{settings.PUBLIC_BASE_URL}/api/v1/conectores/ingesta/"
     mostrar_secreto = not perfil.secret_revelado
-    secreto_para_gas = perfil.api_secret_token if mostrar_secreto else '***ROTA_EL_SECRETO_PARA_VERLO***'
+    secreto_para_gas = (
+        perfil.api_secret_token
+        if mostrar_secreto
+        else 'REEMPLAZA_GENERA_SCRIPT_NUEVO_EN_ONBOARDING'
+    )
 
     gas_code = build_gas_script(
         api_key_id=perfil.api_key_id,

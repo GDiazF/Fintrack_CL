@@ -3,17 +3,78 @@
 
 def build_gas_script(*, api_key_id, api_secret, endpoint_url):
     """Devuelve el script GAS listo para pegar, con credenciales inyectadas."""
+    # Escapar por si el secreto/url tuvieran comillas (token_urlsafe no las trae, pero por seguridad)
+    api_key_id = api_key_id.replace('\\', '\\\\').replace('"', '\\"')
+    api_secret = api_secret.replace('\\', '\\\\').replace('"', '\\"')
+    endpoint_url = endpoint_url.replace('\\', '\\\\').replace('"', '\\"')
+
     return f'''/**
- * Fintrack CL — Cliente de captura Gmail (mensajero).
- * Trigger recomendado: cada 10 minutos.
- * No parsea correos: solo envía el texto crudo al backend.
+ * Fintrack CL — Cliente Gmail (mensajero).
+ * Trigger: cada 10 minutos → enviarCorreosAlServidor
  */
 var API_KEY_ID = "{api_key_id}";
 var API_SECRET = "{api_secret}";
 var ENDPOINT_URL = "{endpoint_url}";
 var ETIQUETA_PROCESADO = "fintrack-procesado";
 
+function _hexFromBytes(firmaBytes) {{
+  return firmaBytes.map(function(byte) {{
+    return ("0" + (byte & 0xFF).toString(16)).slice(-2);
+  }}).join("");
+}}
+
+/** Firma HMAC-SHA256 sobre los bytes UTF-8 exactos (igual que el backend Django). */
+function _firmar(payloadStr, timestamp, nonce) {{
+  var stringParaFirmar = payloadStr + timestamp + nonce;
+  var firmaBytes = Utilities.computeHmacSha256Signature(stringParaFirmar, API_SECRET);
+  return _hexFromBytes(firmaBytes);
+}}
+
+function _postFintrack(payloadObj) {{
+  var payloadStr = JSON.stringify(payloadObj);
+  var timestamp = Math.floor(Date.now() / 1000).toString();
+  var nonce = Utilities.getUuid().replace(/-/g, "").substring(0, 16);
+  var firmaHex = _firmar(payloadStr, timestamp, nonce);
+
+  // Importante: NO usar contentType aparte — evita que UrlFetch re-serialice el JSON
+  // y rompa la firma. El body debe ser exactamente payloadStr.
+  var opciones = {{
+    method: "post",
+    headers: {{
+      "Content-Type": "application/json; charset=utf-8",
+      "X-Key-ID": API_KEY_ID,
+      "X-Signature": firmaHex,
+      "X-Timestamp": timestamp,
+      "X-Nonce": nonce
+    }},
+    payload: payloadStr,
+    muteHttpExceptions: true
+  }};
+
+  return UrlFetchApp.fetch(ENDPOINT_URL, opciones);
+}}
+
+/** Prueba rápida de firma (sin Gmail). Ejecuta esta función primero. */
+function probarConexionFintrack() {{
+  if (!API_SECRET || API_SECRET.indexOf("REEMPLAZA") === 0) {{
+    Logger.log("API_SECRET inválido. Genera script nuevo en Onboarding.");
+    return;
+  }}
+  var resp = _postFintrack({{
+    conector: "gmail_bancoestado_v1",
+    gmail_message_id: "gas_test_" + Date.now(),
+    fecha_correo: new Date().toISOString(),
+    raw_text: "BancoEstado: compra de prueba Fintrack por $1.000 en COPEC el 18/07/2026."
+  }});
+  Logger.log("HTTP " + resp.getResponseCode() + ": " + resp.getContentText());
+}}
+
 function enviarCorreosAlServidor() {{
+  if (!API_SECRET || API_SECRET.indexOf("REEMPLAZA") === 0) {{
+    Logger.log("Fintrack: API_SECRET inválido. Onboarding → Generar script nuevo.");
+    return;
+  }}
+
   var etiqueta = GmailApp.getUserLabelByName(ETIQUETA_PROCESADO) || GmailApp.createLabel(ETIQUETA_PROCESADO);
   var query = "(from:bancoestado.cl OR from:santander.cl OR from:bci.cl) -label:" + ETIQUETA_PROCESADO;
   var hilos = GmailApp.search(query, 0, 15);
@@ -34,40 +95,14 @@ function enviarCorreosAlServidor() {{
         if (remitente.indexOf("bci.cl") !== -1) conectorId = "gmail_bci_v1";
 
         var payloadObj = {{
-          "conector": conectorId,
-          "gmail_message_id": mensaje.getId(),
-          "fecha_correo": mensaje.getDate().toISOString(),
-          "raw_text": mensaje.getPlainBody()
-        }};
-
-        var payloadStr = JSON.stringify(payloadObj);
-        var timestamp = Math.floor(Date.now() / 1000).toString();
-        var nonce = Math.random().toString(36).substring(2, 12);
-        var stringParaFirmar = payloadStr + timestamp + nonce;
-        var firmaBytes = Utilities.computeHmacSignature(
-          Utilities.MacAlgorithm.HMAC_SHA_256,
-          stringParaFirmar,
-          API_SECRET
-        );
-        var firmaHex = firmaBytes.map(function(byte) {{
-          return ("0" + (byte & 0xFF).toString(16)).slice(-2);
-        }}).join("");
-
-        var opciones = {{
-          "method": "post",
-          "contentType": "application/json",
-          "headers": {{
-            "X-Key-ID": API_KEY_ID,
-            "X-Signature": firmaHex,
-            "X-Timestamp": timestamp,
-            "X-Nonce": nonce
-          }},
-          "payload": payloadStr,
-          "muteHttpExceptions": true
+          conector: conectorId,
+          gmail_message_id: mensaje.getId(),
+          fecha_correo: mensaje.getDate().toISOString(),
+          raw_text: mensaje.getPlainBody()
         }};
 
         try {{
-          var respuesta = UrlFetchApp.fetch(ENDPOINT_URL, opciones);
+          var respuesta = _postFintrack(payloadObj);
           var codigoEstado = respuesta.getResponseCode();
           if (codigoEstado === 200 || codigoEstado === 201) {{
             hilos[i].addLabel(etiqueta);
