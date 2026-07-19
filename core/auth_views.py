@@ -12,7 +12,9 @@ from django.contrib.auth.views import (
     PasswordResetConfirmView,
     PasswordResetCompleteView,
 )
+from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import redirect, render, get_object_or_404
+from django.template import loader
 from django.urls import reverse_lazy
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -120,12 +122,34 @@ def reenviar_verificacion_view(request):
     })
 
 
+class FintrackPasswordResetForm(PasswordResetForm):
+    """Igual que Django, pero no traga errores SMTP en silencio."""
+
+    def send_mail(
+        self,
+        subject_template_name,
+        email_template_name,
+        context,
+        from_email,
+        to_email,
+        html_email_template_name=None,
+    ):
+        subject = loader.render_to_string(subject_template_name, context)
+        subject = ''.join(subject.splitlines())
+        body = loader.render_to_string(email_template_name, context)
+        email_message = EmailMultiAlternatives(subject, body, from_email, [to_email])
+        if html_email_template_name is not None:
+            html_email = loader.render_to_string(html_email_template_name, context)
+            email_message.attach_alternative(html_email, 'text/html')
+        email_message.send(fail_silently=False)
+
+
 class FintrackPasswordResetView(PasswordResetView):
     template_name = 'core/password_reset_form.html'
     email_template_name = 'core/email/password_reset.txt'
     subject_template_name = 'core/email/password_reset_subject.txt'
     success_url = reverse_lazy('password_reset_done')
-    form_class = PasswordResetForm
+    form_class = FintrackPasswordResetForm
 
     def form_valid(self, form):
         from urllib.parse import urlparse
@@ -133,7 +157,7 @@ class FintrackPasswordResetView(PasswordResetView):
         opts = {
             'use_https': parsed.scheme == 'https',
             'token_generator': self.token_generator,
-            'from_email': self.from_email,
+            'from_email': settings.DEFAULT_FROM_EMAIL,
             'email_template_name': self.email_template_name,
             'subject_template_name': self.subject_template_name,
             'request': self.request,
@@ -141,6 +165,13 @@ class FintrackPasswordResetView(PasswordResetView):
             'extra_email_context': self.extra_email_context,
             'domain_override': parsed.netloc or self.request.get_host(),
         }
+        email = form.cleaned_data['email']
+        users = list(form.get_users(email))
+        if not users:
+            # Misma pantalla de éxito (no filtrar cuentas), pero queda en log.
+            import logging
+            logging.getLogger(__name__).info('Password reset: sin usuario para %s', email)
+            return redirect(self.get_success_url())
         form.save(**opts)
         return redirect(self.get_success_url())
 
