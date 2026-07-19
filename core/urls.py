@@ -3,6 +3,7 @@ from core.views import (
     IngestaView, dashboard_view, login_view, logout_view,
     movimiento_recategorizar,
 )
+from core.hmac_echo import HmacEchoView
 from core.auth_views import (
     register_view, registro_pendiente_view, verificar_email_view, reenviar_verificacion_view,
     perfil_view, onboarding_view, confirmar_secreto, rotar_secreto,
@@ -19,6 +20,7 @@ from core.reportes_views import export_csv_view, auditoria_view
 
 urlpatterns = [
     path('api/v1/conectores/ingesta/', IngestaView.as_view(), name='api_ingesta'),
+    path('api/v1/conectores/hmac-echo/', HmacEchoView.as_view(), name='api_hmac_echo'),
 
     path('', dashboard_view, name='dashboard'),
     path('movimientos/<int:movimiento_id>/categoria/', movimiento_recategorizar, name='movimiento_recategorizar'),
